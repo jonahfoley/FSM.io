@@ -4,6 +4,7 @@ project(FSM.io CXX)
 
 # Find packages go here.
 find_package(ZLIB REQUIRED)
+find_package(CURL REQUIRED)
     
 # Other common choices are STATIC, SHARED, and MODULE
 # Output libname matches target name, with the usual extensions on your system
@@ -31,6 +32,7 @@ target_link_libraries(
     PRIVATE 
         test_lib
         ZLIB::ZLIB
+        curl
 )
 
 
