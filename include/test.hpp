@@ -1,0 +1,1 @@
+auto say_hello() -> void;
