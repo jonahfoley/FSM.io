@@ -7,10 +7,11 @@ set (CMAKE_CXX_STANDARD 20)
 
 # configure VCPKG
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message("compiling for Linux")
     set(CMAKE_TOOLCHAIN_FILE "/home/jonah/vcpkg/scripts/buildsystems/vcpkg.cmake")
     set(VCPKG_TARGET_TRIPLET "x64-linux")
-endif()
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    message("compiling for Windows")
     set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
     set(VCPKG_TARGET_TRIPLET "x64-windows")
 endif()
