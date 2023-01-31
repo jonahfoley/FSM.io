@@ -5,13 +5,15 @@ project(FSM.io CXX)
 # Find packages go here.
 find_package(ZLIB REQUIRED)
 find_package(CURL REQUIRED)
-    
+find_package(fmt CONFIG REQUIRED)
+find_package(tl-expected REQUIRED)
+
 # Other common choices are STATIC, SHARED, and MODULE
 # Output libname matches target name, with the usual extensions on your system
 add_library(
-    test_lib STATIC 
-    src/test.cpp 
-    include/test.hpp
+    parser_lib STATIC 
+    src/parser.cpp 
+    include/parser.hpp
 )
 
 # warnings configuration
@@ -30,9 +32,11 @@ target_compile_features(FSM.io PRIVATE cxx_std_20)
 target_link_libraries(
     FSM.io 
     PRIVATE 
-        test_lib
+        parser_lib
         ZLIB::ZLIB
-        curl
+        CURL::libcurl
+        fmt::fmt
+        tl::expected
 )
 
 
