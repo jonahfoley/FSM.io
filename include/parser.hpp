@@ -2,9 +2,7 @@
 #define PARSER_H
 
 #include <string_view>
-#include "tl/expected.hpp"
-
-auto say_hello() -> void;
+#include <tl/expected.hpp>
 
 namespace parser {
 
