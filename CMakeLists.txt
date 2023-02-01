@@ -5,22 +5,13 @@ project(FSM.io CXX)
 # configure C++ standard
 set (CMAKE_CXX_STANDARD 20)
 
-# configure VCPKG
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    message("compiling for Linux")
-    set(CMAKE_TOOLCHAIN_FILE "/home/jonah/vcpkg/scripts/buildsystems/vcpkg.cmake")
-    set(VCPKG_TARGET_TRIPLET "x64-linux")
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    message("compiling for Windows")
-    set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
-    set(VCPKG_TARGET_TRIPLET "x64-windows")
-endif()
+# configure conan packages
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup()
 
 # Find packages go here.
 find_package(ZLIB REQUIRED)
 find_package(CURL REQUIRED)
-find_package(fmt CONFIG REQUIRED)
-find_package(tl-expected REQUIRED)
 
 # Other common choices are STATIC, SHARED, and MODULE
 # Output libname matches target name, with the usual extensions on your system
@@ -35,11 +26,8 @@ set(DESIRED_WARNINGS "-Wall -Wextra -Wconversion -Wunreachable-code -Wuninitiali
 
 # Adding something we can run - Output name matches target name
 # cmake .. -G"Unix Makefiles"
-set(SOURCES 
-    src/main.cpp 
-)
-add_executable(FSM.io ${SOURCES})
-target_compile_features(FSM.io PRIVATE cxx_std_20)
+add_executable(FSM.io src/main.cpp)
+# target_compile_features(FSM.io PRIVATE cxx_std_20)
 
 # Make sure you link your targets with this command. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
@@ -49,10 +37,8 @@ target_link_libraries(
         parser_lib
         ZLIB::ZLIB
         CURL::libcurl
-        fmt::fmt-header-only
-        tl::expected
+        ${CONAN_LIBS}
 )
-
 
 
 
