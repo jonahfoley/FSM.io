@@ -1,6 +1,10 @@
 #ifndef FSM_ELEMENTS_H
 #define FSM_ELEMENTS_H
 
+#include <vector>
+#include <string>
+#include <variant>
+
 namespace parser
 {
     struct FSMElement
@@ -15,11 +19,11 @@ namespace parser
     {
         FSMState(
             std::string_view id,
-            const std::vector<std::string> &values)
+            const std::vector<std::string> &outputs)
             : FSMElement{id},
-              m_values{values} {}
+              m_outputs{outputs} {}
 
-        std::vector<std::string> m_values;
+        std::vector<std::string> m_outputs;
     };
 
     struct FSMDecision : public FSMElement

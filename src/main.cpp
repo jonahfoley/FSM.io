@@ -1,8 +1,10 @@
-#include <iostream>
 #include "../include/parser.hpp"
+#include "../include/FSM_builder.hpp"
+
 #include "fmt/format.h"
 #include "tinyxml2.h"
 
+#include <iostream>
 #include <ranges>
 
 auto main() -> int
@@ -16,9 +18,9 @@ auto main() -> int
             .and_then(parser::url_decode)
             .or_else(parser::HandleParseError);
     
-    auto toks = parser::drawio_to_tokens(drawio_xml_str.value());
-
-    fmt::print("Result: \n\n {}",  drawio_xml_str.value());
-
+    auto fsm_str = 
+        parser::drawio_to_tokens(drawio_xml_str.value())
+            .map(fsm::build_FSM);
+        
     return 0;
 }

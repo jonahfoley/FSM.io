@@ -137,69 +137,81 @@ namespace parser
 
         auto elem_is_type = [](XMLElement *element, std::string_view test_type) -> bool
         {
-            auto actual_type = std::string_view{element->Attribute("style")} 
+            if(auto style = element->Attribute("style"); style != nullptr)
+            {
+                auto res = std::string_view{style} 
                 | views::split(';') 
                 | ranges::views::filter([test_type](auto &&rng) {
                     auto actual_type = std::string_view(&*rng.begin(), ranges::distance(rng));
                     return actual_type == test_type;
                 });
-            return !actual_type.empty();
+                return !res.empty();
+            }
+            return false;             
         };
 
         // specialisations of elem type checked lambda
-        auto is_state = [&elem_is_type](XMLElement* element){ return elem_is_type(element, "rounded=0");};
+        // TODO : update to handle strings within the diagram (they are coutned as states!)
         auto is_decision = [&elem_is_type](XMLElement* element){ return elem_is_type(element, "rhombus");};
         auto is_arrow = [&elem_is_type](XMLElement* element){ return elem_is_type(element, "edgeStyle=orthogonalEdgeStyle");};
+        auto is_state = [&is_decision, &is_arrow](XMLElement* element){ 
+            return !is_decision(element) & !is_arrow(element); 
+        };
 
-        XMLElement *pRootElement = doc.RootElement();
+        XMLElement *pGraphModel = doc.RootElement();
         std::vector<FSMToken> toks;
 
-        if (pRootElement != nullptr)
+        if (pGraphModel)
         {
-            XMLElement *pCell = pRootElement->FirstChildElement("mxCell");
-            std::vector<XMLElement *> elements;
-            while (pCell)
-            {
-                const char* dummy;
-                if (pCell->QueryAttribute("style", &dummy) == XML_SUCCESS)
+            XMLElement *pRoot = pGraphModel->FirstChildElement("root");
+            if(pRoot) 
+            {   
+                XMLElement *pCell = pRoot->FirstChildElement("mxCell");
+                std::vector<XMLElement *> elements;
+                while (pCell)
                 {
-                    elements.push_back(pCell);
+                    const char* dummy;
+                    if (pCell->Attribute("style"))
+                    {
+                        elements.push_back(pCell);
+                    }
+                    pCell = pCell->NextSiblingElement("mxCell");
                 }
-                pCell = pCell->NextSiblingElement("mxCell");
+
+
+                // a range of FSMStates's
+                auto states = elements 
+                    | views::filter(is_state)
+                    | views::transform([](XMLElement *el) { 
+                        auto outputs = std::string_view{el->Attribute("value")} 
+                            | views::split(std::string_view{"&lt;br&gt;"})
+                            | ranges::views::transform([](auto &&rng) {
+                                return std::string_view(&*rng.begin(), ranges::distance(rng)); // construct sv from range (eugh!)
+                            });
+                        return FSMState{el->Attribute("id"), std::vector<std::string>(outputs.begin(), outputs.end())}; 
+                    });
+
+                // a range of FSMDecision's
+                auto decisions = elements 
+                    | views::filter(is_decision)
+                    | views::transform([](XMLElement *el) { 
+                        return FSMDecision{el->Attribute("id"), el->Attribute("value")}; 
+                    });
+
+                // a range of FSMArrow's
+                auto arrows = elements 
+                    | std::views::filter(is_arrow)
+                    | views::transform([](XMLElement *el) { 
+                        return FSMArrow{el->Attribute("id"), el->Attribute("source"), el->Attribute("target")}; 
+                    });
+
+                // copy the state elements into toks
+                ranges::copy(states, std::back_inserter(toks));
+                ranges::copy(decisions, std::back_inserter(toks));
+                ranges::copy(arrows, std::back_inserter(toks));
+
+                return toks;
             }
-
-            // a range of FSMStates's
-            auto states = elements 
-                | views::filter(is_state)
-                | views::transform([](XMLElement *el) { 
-                    auto outputs = std::string_view{el->Attribute("value")} 
-                        | views::split(std::string_view{"&lt;br&gt;"})
-                        | ranges::views::transform([](auto &&rng) {
-                            return std::string_view(&*rng.begin(), ranges::distance(rng)); // construct sv from range (eugh!)
-                        });
-                    return FSMState{el->Attribute("id"), std::vector<std::string>(outputs.begin(), outputs.end())}; 
-                });
-
-            // a range of FSMDecision's
-            auto decisions = elements 
-                | views::filter(is_decision)
-                | views::transform([](XMLElement *el) { 
-                    return FSMDecision{el->Attribute("id"), el->Attribute("value")}; 
-                });
-
-            // a range of FSMArrow's
-            auto arrows = elements 
-                | std::views::filter(is_arrow)
-                | views::transform([](XMLElement *el) { 
-                    return FSMArrow{el->Attribute("id"), el->Attribute("source"), el->Attribute("target")}; 
-                });
-
-            // copy the state elements into toks
-            ranges::copy(states, std::back_inserter(toks));
-            ranges::copy(decisions, std::back_inserter(toks));
-            ranges::copy(arrows, std::back_inserter(toks));
-
-            return toks;
         }
         return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
     }
