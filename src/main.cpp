@@ -20,6 +20,7 @@ auto main() -> int
     
     auto fsm_str = 
         parser::drawio_to_tokens(drawio_xml_str.value())
+            .or_else([](auto&&){ throw std::runtime_error("dang");})
             .map(fsm::build_FSM);
         
     return 0;
