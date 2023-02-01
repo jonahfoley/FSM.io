@@ -11,17 +11,15 @@ auto main() -> int
 {
     std::string_view dir{"../../resources/test.xml"};
 
-    auto drawio_xml_str =
+    auto fsm_tokens =
         parser::extract_encoded_drawio(dir)
             .and_then(parser::base64_decode)
             .and_then(parser::inflate)
             .and_then(parser::url_decode)
+            .and_then(parser::drawio_to_tokens)
             .or_else(parser::HandleParseError);
     
-    auto fsm_str = 
-        parser::drawio_to_tokens(drawio_xml_str.value())
-            .or_else([](auto&&){ throw std::runtime_error("dang");})
-            .map(fsm::build_FSM);
+    auto res = fsm::build_FSM(fsm_tokens.value());
         
     return 0;
 }
