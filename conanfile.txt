@@ -1,6 +1,7 @@
 [requires]
 tl-expected/1.0.0
 fmt/9.1.0
+tinyxml2/9.0.0
 
 [generators]
 cmake

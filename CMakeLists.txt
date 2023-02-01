@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(FSM.io CXX)
+set(TARGET FSM.io)
+project(${TARGET} CXX)
 
 # configure C++ standard
 set (CMAKE_CXX_STANDARD 20)
@@ -20,21 +21,24 @@ add_library(
     src/parser.cpp 
     include/parser.hpp
 )
-
-# warnings configuration
-set(DESIRED_WARNINGS "-Wall -Wextra -Wconversion -Wunreachable-code -Wuninitialized -pedantic-errors -Wold-style-cast -Wno-error=unused-variable -Wshadow -Wfloat-equal")
+add_library(
+    fsm_builder_lib STATIC 
+    src/FSM_builder.cpp 
+    include/FSM_builder.hpp
+)
 
 # Adding something we can run - Output name matches target name
-# cmake .. -G"Unix Makefiles"
-add_executable(FSM.io src/main.cpp)
-# target_compile_features(FSM.io PRIVATE cxx_std_20)
+# cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+add_executable(${TARGET} src/main.cpp include/FSM_elements.hpp)
+target_compile_options(${TARGET} PRIVATE -Wall -Werror -Wextra -Wconversion -Wunreachable-code -Wuninitialized -pedantic-errors -Wold-style-cast -Wno-error=unused-variable -Wshadow -Wfloat-equal)
 
 # Make sure you link your targets with this command. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
 target_link_libraries(
-    FSM.io 
+    ${TARGET} 
     PRIVATE 
         parser_lib
+        fsm_builder_lib
         ZLIB::ZLIB
         CURL::libcurl
         ${CONAN_LIBS}

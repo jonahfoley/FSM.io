@@ -66,7 +66,8 @@
         "optional": "cpp",
         "random": "cpp",
         "string_view": "cpp",
-        "cinttypes": "cpp"
+        "cinttypes": "cpp",
+        "variant": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
