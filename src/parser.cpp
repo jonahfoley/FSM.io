@@ -6,6 +6,8 @@
 #include <sstream>
 #include <unordered_map>
 #include <ranges>
+#include <cassert>
+#include <utility>
 
 #include <zlib.h>
 #include <curl/curl.h>
@@ -126,6 +128,10 @@ namespace parser
         return tl::unexpected<ParseError>(ParseError::URLDecodeError);
     }
 
+    static bool to_bool(std::string_view str) {
+        return str == "1" | str == "True" | str == "true";
+    }
+
     auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<std::vector<FSMToken>, ParseError>
     {
         XMLDocument doc;
@@ -152,8 +158,12 @@ namespace parser
 
         // specialisations of elem type checked lambda
         // TODO : update to handle strings within the diagram (they are coutned as states!)
-        auto is_decision = [&elem_is_type](XMLElement* element){ return elem_is_type(element, "rhombus");};
-        auto is_arrow = [&elem_is_type](XMLElement* element){ return elem_is_type(element, "edgeStyle=orthogonalEdgeStyle");};
+        auto is_decision = [&elem_is_type](XMLElement* element){ 
+            return elem_is_type(element, "rhombus");
+        };
+        auto is_arrow = [&elem_is_type](XMLElement* element){ 
+            return elem_is_type(element, "edgeStyle=orthogonalEdgeStyle");
+        };
         auto is_state = [&is_decision, &is_arrow](XMLElement* element){ 
             return !is_decision(element) & !is_arrow(element); 
         };
@@ -166,6 +176,7 @@ namespace parser
             XMLElement *pRoot = pGraphModel->FirstChildElement("root");
             if(pRoot) 
             {   
+                // extract all the cells from the diagram
                 XMLElement *pCell = pRoot->FirstChildElement("mxCell");
                 std::vector<XMLElement *> elements;
                 while (pCell)
@@ -178,38 +189,106 @@ namespace parser
                     pCell = pCell->NextSiblingElement("mxCell");
                 }
 
+                // a range of FSMStates
+                ranges::copy(
+                    elements 
+                        | views::filter(is_state)
+                        | views::transform([](XMLElement *el) { 
+                            auto outputs = std::string_view{el->Attribute("value")} 
+                                | views::split(std::string_view{"&lt;br&gt;"})
+                                | views::transform([](auto &&rng) {
+                                    return std::string_view(&*rng.begin(), ranges::distance(rng)); // construct sv from range (eugh!)
+                                });
+                            return FSMState{
+                                el->Attribute("id"),
+                                std::vector<std::string>(outputs.begin(), outputs.end())
+                            }; 
+                        }),
+                    std::back_inserter(toks)
+                );
 
-                // a range of FSMStates's
-                auto states = elements 
-                    | views::filter(is_state)
-                    | views::transform([](XMLElement *el) { 
-                        auto outputs = std::string_view{el->Attribute("value")} 
-                            | views::split(std::string_view{"&lt;br&gt;"})
-                            | ranges::views::transform([](auto &&rng) {
-                                return std::string_view(&*rng.begin(), ranges::distance(rng)); // construct sv from range (eugh!)
-                            });
-                        return FSMState{el->Attribute("id"), std::vector<std::string>(outputs.begin(), outputs.end())}; 
-                    });
-
-                // a range of FSMDecision's
-                auto decisions = elements 
+                std::vector<FSMDecision> decisions;
+                std::vector<FSMArrow> arrows;
+                std::vector<std::pair<FSMArrow,FSMArrow>> arrow_pairs;
+                
+                // a range of FSMDecisions
+                
+                ranges::copy(
+                    elements 
                     | views::filter(is_decision)
                     | views::transform([](XMLElement *el) { 
-                        return FSMDecision{el->Attribute("id"), el->Attribute("value")}; 
-                    });
+                        return FSMDecision{
+                            el->Attribute("id"),
+                            el->Attribute("value")
+                        }; 
+                    }),
+                    std::back_inserter(decisions)
+                );
+                
+                // a range of FSMArrows
+                ranges::copy(
+                    elements 
+                        | views::filter(is_arrow)
+                        | views::transform([](XMLElement *el) { 
+                            FSMArrow arrow{
+                                el->Attribute("id"),
+                                el->Attribute("source"), 
+                                el->Attribute("target")
+                            };
+                            // if the arrow is relating toa decision block, it'll have a value
+                            const char* pValue = el->Attribute("value");
+                            if (pValue) arrow.m_value = to_bool(pValue);
+                            return arrow;
+                        }),
+                    std::back_inserter(arrows)
+                );
+                
+                /*
+                    construct the range of transitions from each decision element, where we have 
+                    found the true path as the target of the arrow which as source as the decision
+                    element, and a 'true' (i.e. 1 or 'true') nearby.
+                */
 
-                // a range of FSMArrow's
-                auto arrows = elements 
-                    | std::views::filter(is_arrow)
-                    | views::transform([](XMLElement *el) { 
-                        return FSMArrow{el->Attribute("id"), el->Attribute("source"), el->Attribute("target")}; 
-                    });
+                // (1) extract the two arrows relating to a given decision block
+                // yields a view of a range, where each element is a view of a (two element) range
+                ranges::copy(
+                    decisions
+                    | views::transform([&arrows](auto&& el){
+                        std::string_view id = el.m_id;
+                        std::vector<FSMArrow> arrow_pair;
+                        ranges::copy(
+                            arrows | views::filter([id](auto&& arrow){ return arrow.m_source == id; }),
+                            std::back_inserter(arrow_pair)
+                        );
+                        assert(arrow_pair.size() == 2);
+                        return std::pair{arrow_pair[0], arrow_pair[1]};
+                    }),
+                    std::back_inserter(arrow_pairs)
+                );
 
-                // copy the state elements into toks
-                ranges::copy(states, std::back_inserter(toks));
-                ranges::copy(decisions, std::back_inserter(toks));
-                ranges::copy(arrows, std::back_inserter(toks));
+                if (arrow_pairs.size() != decisions.size())
+                {
+                    return tl::unexpected<ParseError>(ParseError::DrawioToToken);
+                }
 
+                // (2) cosntruct the FSMTransition element
+                ranges::copy(
+                    ranges::iota_view(0, static_cast<int>(arrow_pairs.size()))
+                    | views::transform([&arrow_pairs, &decisions](int i){
+                        // we have the arrow pair, but need to get true and false arrow 
+                        auto [a,b] = arrow_pairs[i];
+                        if (a.m_value)
+                        {
+                            return FSMTransition{decisions[i],a,b};
+                        }
+                        else 
+                        {
+                            return FSMTransition{decisions[i],b,a};
+                        }
+                    }),
+                    std::back_inserter(toks)
+                );
+                
                 return toks;
             }
         }

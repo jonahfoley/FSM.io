@@ -19,7 +19,8 @@ namespace parser
         ExtractingDrawioString,
         URLDecodeError,
         Base64DecodeError,
-        InflationError
+        InflationError,
+        DrawioToToken
     };
 
     void HandleParseError(const ParseError err);

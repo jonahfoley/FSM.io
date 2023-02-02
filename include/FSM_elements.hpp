@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <variant>
+#include <optional>
 
 namespace parser
 {
@@ -12,6 +13,7 @@ namespace parser
         FSMElement(
             std::string_view id)
             : m_id{id} {}
+
         std::string m_id;
     };
 
@@ -45,16 +47,41 @@ namespace parser
             std::string_view target)
             : FSMElement{id},
               m_source{source},
-              m_target{target} {}
+              m_target{target},
+              m_value{std::nullopt} {}
+
+        FSMArrow(
+            std::string_view id,
+            std::string_view source,
+            std::string_view target,
+            const bool value)
+            : FSMElement{id},
+              m_source{source},
+              m_target{target},
+              m_value{value} {}
 
         std::string m_source;
         std::string m_target;
+        std::optional<bool> m_value;
     };
 
-    using FSMToken = std::variant<FSMState, FSMDecision, FSMArrow>;
+    struct FSMTransition
+    {
+        FSMTransition(
+            FSMDecision decision,
+            FSMArrow true_path,
+            FSMArrow false_path)
+            : m_decision{decision},
+              m_true_path{true_path},
+              m_false_path{false_path} {}
+
+        FSMDecision m_decision;
+        FSMArrow m_true_path;
+        FSMArrow m_false_path;
+    };
+
+    using FSMToken = std::variant<FSMState, FSMDecision, FSMArrow, FSMTransition>;
 
 } // namespace parser
-
-
 
 #endif
