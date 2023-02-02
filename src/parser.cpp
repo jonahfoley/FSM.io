@@ -20,12 +20,26 @@ namespace parser
     namespace views  = std::views;
     namespace ranges = std::ranges;
 
+    namespace helpers {
+        static bool to_bool(std::string_view str) {
+            return str == "1" | str == "True" | str == "true";
+        }
+    }
+
     void HandleParseError(const ParseError err)
-    {
-        if (err == ParseError::InvalidDrawioFile)
-            throw std::runtime_error("you provided an invalid drawio file!");
-        else
-            throw std::runtime_error("oh no! anyway..");
+    {   
+        switch(err)
+        {
+            case ParseError::InvalidDrawioFile:
+                throw std::runtime_error("you provided an invalid drawio file!");
+                break;
+            case ParseError::DecisionPathError:
+                throw std::runtime_error("you have an unrouted decision block");
+                break;
+            default:
+                throw std::runtime_error("oh no! anyway..");
+                break;
+        }
     }
 
     auto extract_encoded_drawio(std::string_view file_name) -> tl::expected<std::string, ParseError>
@@ -128,10 +142,6 @@ namespace parser
         return tl::unexpected<ParseError>(ParseError::URLDecodeError);
     }
 
-    static bool to_bool(std::string_view str) {
-        return str == "1" | str == "True" | str == "true";
-    }
-
     auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<std::vector<FSMToken>, ParseError>
     {
         XMLDocument doc;
@@ -141,6 +151,7 @@ namespace parser
             return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
         }
 
+         // checks if a given xmCell element is a given type based on its "style"
         auto elem_is_type = [](XMLElement *element, std::string_view test_type) -> bool
         {
             if(auto style = element->Attribute("style"); style != nullptr)
@@ -157,7 +168,6 @@ namespace parser
         };
 
         // specialisations of elem type checked lambda
-        // TODO : update to handle strings within the diagram (they are coutned as states!)
         auto is_decision = [&elem_is_type](XMLElement* element){ 
             return elem_is_type(element, "rhombus");
         };
@@ -181,38 +191,37 @@ namespace parser
                 std::vector<XMLElement *> elements;
                 while (pCell)
                 {
-                    const char* dummy;
-                    if (pCell->Attribute("style"))
+                    if (pCell->Attribute("style")) 
                     {
                         elements.push_back(pCell);
                     }
                     pCell = pCell->NextSiblingElement("mxCell");
                 }
 
-                // a range of FSMStates
+                // construct the FSMStates and copy into output tokens
                 ranges::copy(
                     elements 
                         | views::filter(is_state)
                         | views::transform([](XMLElement *el) { 
-                            auto outputs = std::string_view{el->Attribute("value")} 
-                                | views::split(std::string_view{"&lt;br&gt;"})
-                                | views::transform([](auto &&rng) {
-                                    return std::string_view(&*rng.begin(), ranges::distance(rng)); // construct sv from range (eugh!)
-                                });
+                            std::vector<std::string_view> outputs;
+                            ranges::copy(
+                                views::transform(
+                                    std::string_view{el->Attribute("value")} | views::split(std::string_view{"<br>"}),
+                                    [](auto &&rng) { return std::string_view(&*rng.begin(), ranges::distance(rng)); }
+                                ),
+                                std::back_inserter(outputs)
+                            );
                             return FSMState{
                                 el->Attribute("id"),
-                                std::vector<std::string>(outputs.begin(), outputs.end())
+                                outputs
                             }; 
                         }),
                     std::back_inserter(toks)
                 );
 
+                // we later index the decision blocks - which cant be done with a ranges::filter_view
+                // so copy into a sector
                 std::vector<FSMDecision> decisions;
-                std::vector<FSMArrow> arrows;
-                std::vector<std::pair<FSMArrow,FSMArrow>> arrow_pairs;
-                
-                // a range of FSMDecisions
-                
                 ranges::copy(
                     elements 
                     | views::filter(is_decision)
@@ -226,33 +235,30 @@ namespace parser
                 );
                 
                 // a range of FSMArrows
-                ranges::copy(
-                    elements 
-                        | views::filter(is_arrow)
-                        | views::transform([](XMLElement *el) { 
-                            FSMArrow arrow{
-                                el->Attribute("id"),
-                                el->Attribute("source"), 
-                                el->Attribute("target")
-                            };
-                            // if the arrow is relating toa decision block, it'll have a value
-                            const char* pValue = el->Attribute("value");
-                            if (pValue) arrow.m_value = to_bool(pValue);
-                            return arrow;
-                        }),
-                    std::back_inserter(arrows)
-                );
-                
+                auto arrows = elements 
+                    | views::filter(is_arrow)
+                    | views::transform([](XMLElement *el) { 
+                        FSMArrow arrow{
+                            el->Attribute("id"),
+                            el->Attribute("source"), 
+                            el->Attribute("target")
+                        };
+                        // if the arrow is relating toa decision block, it'll have a value
+                        const char* pValue = el->Attribute("value");
+                        if (pValue) arrow.m_value = helpers::to_bool(pValue);
+                        return arrow;
+                    });
+
+                    
                 /*
-                    construct the range of transitions from each decision element, where we have 
-                    found the true path as the target of the arrow which as source as the decision
-                    element, and a 'true' (i.e. 1 or 'true') nearby.
+                    We must now combine the arrows and decisions into a transition. 
+                    This is a decisio block with an id, predicate, true path and false path.
+                    Its a two-stage process, in (1) and (2) below.
                 */
 
                 // (1) extract the two arrows relating to a given decision block
-                // yields a view of a range, where each element is a view of a (two element) range
-                ranges::copy(
-                    decisions
+                // yields a view of a range, where each element is a pair of FSMArrow's
+                auto arrow_pairs = decisions
                     | views::transform([&arrows](auto&& el){
                         std::string_view id = el.m_id;
                         std::vector<FSMArrow> arrow_pair;
@@ -262,30 +268,30 @@ namespace parser
                         );
                         assert(arrow_pair.size() == 2);
                         return std::pair{arrow_pair[0], arrow_pair[1]};
-                    }),
-                    std::back_inserter(arrow_pairs)
-                );
+                    });
 
+                // there should be a pair of arrows for every decision block!
                 if (arrow_pairs.size() != decisions.size())
                 {
-                    return tl::unexpected<ParseError>(ParseError::DrawioToToken);
+                    return tl::unexpected<ParseError>(ParseError::DecisionPathError);
                 }
 
-                // (2) cosntruct the FSMTransition element
+                // (2) construct the FSMTransition element
                 ranges::copy(
-                    ranges::iota_view(0, static_cast<int>(arrow_pairs.size()))
-                    | views::transform([&arrow_pairs, &decisions](int i){
-                        // we have the arrow pair, but need to get true and false arrow 
-                        auto [a,b] = arrow_pairs[i];
-                        if (a.m_value)
-                        {
-                            return FSMTransition{decisions[i],a,b};
-                        }
-                        else 
-                        {
-                            return FSMTransition{decisions[i],b,a};
-                        }
-                    }),
+                    views::transform(
+                        ranges::iota_view(0, static_cast<int>(arrow_pairs.size())),
+                        [&arrow_pairs, &decisions](int i){
+                            // we have the arrow pair, but need to get true and false arrow 
+                            auto [a,b] = arrow_pairs[i];
+                            if (a.m_value)
+                            {
+                                return FSMTransition{decisions[i],a,b};
+                            }
+                            else 
+                            {
+                                return FSMTransition{decisions[i],b,a};
+                            }
+                        }),
                     std::back_inserter(toks)
                 );
                 

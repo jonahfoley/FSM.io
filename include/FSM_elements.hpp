@@ -21,11 +21,11 @@ namespace parser
     {
         FSMState(
             std::string_view id,
-            const std::vector<std::string> &outputs)
+            const std::vector<std::string_view> &outputs)
             : FSMElement{id},
               m_outputs{outputs} {}
 
-        std::vector<std::string> m_outputs;
+        std::vector<std::string_view> m_outputs;
     };
 
     struct FSMDecision : public FSMElement
@@ -80,7 +80,7 @@ namespace parser
         FSMArrow m_false_path;
     };
 
-    using FSMToken = std::variant<FSMState, FSMDecision, FSMArrow, FSMTransition>;
+    using FSMToken = std::variant<FSMState, FSMTransition>;
 
 } // namespace parser
 

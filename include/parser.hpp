@@ -20,7 +20,8 @@ namespace parser
         URLDecodeError,
         Base64DecodeError,
         InflationError,
-        DrawioToToken
+        DrawioToToken,
+        DecisionPathError
     };
 
     void HandleParseError(const ParseError err);

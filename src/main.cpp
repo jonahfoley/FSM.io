@@ -19,7 +19,9 @@ auto main() -> int
             .and_then(parser::drawio_to_tokens)
             .or_else(parser::HandleParseError);
     
-    auto res = fsm::build_FSM(fsm_tokens.value());
+    auto builder = fsm::FSMBuilder();
+    auto res = builder.build(fsm_tokens.value());
+    fmt::print("{}", res);
         
     return 0;
 }
