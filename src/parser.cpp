@@ -346,10 +346,10 @@ namespace parser
             matrix.push_back(row);
         }
 
-        auto get_id = [](auto& el){ return el.m_id; };
-
         auto find_pos = [&](std::string_view id)
         {
+            auto get_id = [](auto& el){ return el.m_id; };
+
             unsigned pos;
             auto state_ids = states | views::transform(get_id);
             auto res = ranges::find(state_ids, id);
@@ -467,145 +467,11 @@ namespace parser
                         dimensions, states, predicates, transition_matrix, 
                         row, col, root_ptr
                     );
-                    
+
                     trees.push_back(TransitionTree(std::move(root_ptr)));
                 }
             }
         }
         return trees;
     }
-
-    auto build_decisions(
-        std::vector<FSMArrow>& arrows,
-        std::vector<FSMPredicate>& predicates
-    ) -> tl::expected<std::vector<FSMDecision>, ParseError>
-    {
-        // extract the two arrows which are leaving a given decision block
-        // and the one arrow which is entering
-        auto pred_arrows = predicates
-            | views::transform([&arrows](FSMPredicate& predicate){
-                std::string_view id = predicate.m_id;
-                std::vector<FSMArrow> in_out_arrows;
-                // TODO : a better way?
-                ranges::copy(
-                    arrows | views::filter([id](FSMArrow& arrow){ return arrow.m_source == id; }),
-                    std::back_inserter(in_out_arrows)
-                );
-                ranges::copy(
-                    arrows | views::filter([id](FSMArrow& arrow){ return arrow.m_target == id; }),
-                    std::back_inserter(in_out_arrows)
-                );
-                assert(in_out_arrows.size() == 3); // two out arrows, one in arrow
-                return std::make_tuple(
-                    std::pair{in_out_arrows[0], in_out_arrows[1]},
-                    in_out_arrows[2]
-                );
-            });
-
-        // there should be a pair of arrows for every decision block!
-        if (pred_arrows.size() != predicates.size())
-        {
-            return tl::unexpected<ParseError>(ParseError::DecisionPathError);
-        }
-
-        // construct the FSMTransition element for the decision blocks and copy into output
-        auto decisions = ranges::iota_view(0, static_cast<int>(predicates.size()))
-            | views::transform([&pred_arrows, &predicates](int i){
-                // we have the arrow pair, but need to get true and false arrow 
-                auto [out_arrows,in_arrow] = pred_arrows[i];
-                auto [a,b] = out_arrows;
-                if (b.m_value) std::swap(a,b);
-                return FSMDecision{
-                    predicates[i].m_id, 
-                    in_arrow.m_source,
-                    predicates[i].m_predicate,
-                    a.m_target,
-                    b.m_target
-                };
-            });
-
-        return utility::to_vector(decisions);
-    }
-
-    static 
-    auto process_node(
-        std::vector<FSMDecision>& decisions,
-        const std::unique_ptr<TransitionNode>& node
-    ) -> void
-    {
-        auto children = decisions 
-            | views::filter([&](auto& decision){
-                return decision.m_from_path == node->m_value.m_id;; 
-            });
-
-        fmt::print("Node {} has ", node->m_value.m_id);
-
-        // append the new transition
-        if (children) 
-        {
-            // els is at most 2 in size (due to *binary* tree)
-            const FSMDecision& first  = children.front();
-            const FSMDecision& second = children.back();
-
-            // we have one element
-            if (first.m_id == second.m_id)
-            {
-                fmt::print("one child\n");
-                auto tr = FSMTransition(first.m_id, first.m_predicate);
-                node->m_left = std::make_unique<TransitionNode>(tr);
-                process_node(decisions, node->m_left);
-            }
-            // we have two elements (i.e. the left and right nodes of a decision block)
-            else 
-            {
-                fmt::print("two children\n");
-                auto tr_first  = FSMTransition(first.m_id, first.m_predicate);
-                auto tr_second = FSMTransition(second.m_id, second.m_predicate);
-                node->m_left  = std::make_unique<TransitionNode>(tr_first);
-                node->m_right = std::make_unique<TransitionNode>(tr_second);
-                process_node(decisions, node->m_left);
-                process_node(decisions, node->m_right);
-            }
-        }
-        else 
-        {
-            fmt::print("zero children\n");
-            return;
-        }
-    }
-    
-    auto build_transition_tree(
-        std::vector<FSMState>& states,
-        std::vector<FSMArrow>& arrows,
-        std::vector<FSMDecision>& decisions
-    ) -> std::vector<TransitionTree>
-    {
-        
-        // make each root node from the states
-        std::vector<std::unique_ptr<TransitionNode>> root_nodes;
-        ranges::move(
-            states | views::transform([](FSMState& state){
-                return std::make_unique<TransitionNode>(FSMTransition(state.m_id));
-            }),
-            std::back_inserter(root_nodes)
-        );
-
-        fmt::print("There are {} root nodes\n", root_nodes.size());
-
-        // recursively add each node to the tree
-        // terminates via a call to 'return' once there are no mode children
-        ranges::for_each(
-            root_nodes,
-            [&decisions, &states](std::unique_ptr<TransitionNode>& node){
-                fmt::print("Processing node: {}\n", node->m_value.m_id);
-                process_node(decisions, node); 
-            }
-        );
-
-        // transform each root node into a tree and return the result
-        auto trees = root_nodes
-            | views::transform([](std::unique_ptr<TransitionNode>& node){ return TransitionTree(std::move(node)); });
-        return utility::to_vector(trees);
-    }
-    
 }
