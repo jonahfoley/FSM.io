@@ -20,17 +20,21 @@ auto main() -> int
             .and_then(parser::drawio_to_tokens)
             .or_else(parser::HandleParseError);
 
+    fmt::print("a");
     // break down the tuple into (s)tates, (p)redicates, and (a)rrows
     auto& [s, p, a] = token_tuple.value();
 
+    fmt::print("b");
     // get the decisions
     auto m = build_transition_matrix(s, p, a);
-
+    
+    fmt::print("c");
     // for the transition binary trees
     auto transition_trees = build_transition_tree(s, p, m);
 
+    fmt::print("d");
     auto builder = fsm::FSMBuilder(s, transition_trees);
-    fmt::print("\n ------------------------------------- \n {}", builder.write());
+    fmt::print("{}", builder.write());
 
     return 0;
 }

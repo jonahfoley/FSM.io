@@ -3,6 +3,10 @@
 
 #include <ranges>
 #include <vector>
+#include <numeric>
+#include <string_view>
+
+#include "fmt/format.h" 
 
 // from: https://stackoverflow.com/questions/58808030/range-view-to-stdvector
 namespace utility
@@ -43,6 +47,14 @@ namespace utility
     auto to()
     {
         return detail::to_helper<Container>{};
+    }
+
+    auto join_strings(const auto& container, const std::string& delim) -> std::string
+    {
+        return std::accumulate(container.begin(), container.end(), std::string(), 
+        [delim](const std::string& a, const std::string& b) -> std::string { 
+            return a + (a.length() > 0 ? delim : "") + b; 
+        });
     }
 }
 

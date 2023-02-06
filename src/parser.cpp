@@ -10,6 +10,7 @@
 #include <ranges>
 #include <cassert>
 #include <utility>
+#include <algorithm>
 
 #include <zlib.h>
 #include <curl/curl.h>
@@ -287,7 +288,8 @@ namespace parser
                             el->Attribute("id"),
                             outputs
                         }; 
-                    });
+                    })
+                    | utility::to<std::vector<FSMState>>();
 
                 // we later index the decision blocks - which cant be done with a ranges::filter_view
                 // so copy into a sector
@@ -298,7 +300,8 @@ namespace parser
                             el->Attribute("id"),
                             el->Attribute("value")
                         }; 
-                    });
+                    })
+                    | utility::to<std::vector<FSMPredicate>>();
                 
                 // a range of FSMArrows
                 auto arrows = elements 
@@ -313,13 +316,10 @@ namespace parser
                         const char* pValue = el->Attribute("value");
                         if (pValue) arrow.m_value = helpers::to_bool(pValue);
                         return arrow;
-                    });
+                    })
+                    | utility::to<std::vector<FSMArrow>>();
 
-                return std::make_tuple(
-                    utility::to_vector(states),
-                    utility::to_vector(predicates),
-                    utility::to_vector(arrows)
-                );
+                return std::make_tuple(states,predicates,arrows);
             }
         }
         return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
@@ -388,7 +388,7 @@ namespace parser
     }
 
     static 
-    auto process_node_v2(
+    auto process_node(
         // about the states
         unsigned dimensions,
         std::vector<FSMState>& states,
@@ -413,7 +413,7 @@ namespace parser
                 // process each of the possible children nodes
                 for (unsigned i = 0; i < dimensions; ++i)
                 {
-                    process_node_v2(
+                    process_node(
                         dimensions, states, predicates, transition_matrix, 
                         i, row, node
                     );
@@ -446,7 +446,6 @@ namespace parser
         TransitionMatrix& transition_matrix
     ) -> std::vector<TransitionTree>
     {
-        fmt::print("building tree\n");
         const unsigned dimensions = states.size() + predicates.size();
 
         // visit each position in the transition matrix corresponding to a state
@@ -463,7 +462,7 @@ namespace parser
                     FSMTransition root(id);
 
                     auto root_ptr = std::make_unique<TransitionNode>(root);
-                    process_node_v2(
+                    process_node(
                         dimensions, states, predicates, transition_matrix, 
                         row, col, root_ptr
                     );

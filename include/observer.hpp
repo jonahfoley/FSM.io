@@ -8,36 +8,29 @@
 #include <numeric>
 #include <string>
 #include <algorithm>
+#include <memory>
+
 
 namespace utility
 {
-    template <std::copyable T>
+    template <std::movable T>
     class Observed
     {
     public:
         // ctors
         Observed() 
             : m_data{}, m_updated{false} {};
+
         Observed(const T &data) 
             : m_data{data}, m_updated{true} {};
 
-        // copy ctor
-        Observed(const Observed &other)
-            : m_data{other.m_data},
-                m_updated{other.m_updated} {}
+        Observed(T &&data) 
+            : m_data{std::move(data)}, m_updated{true} {};
 
         // move ctor
         Observed(Observed &&other)
             : m_data{std::move(other.m_data)},
-                m_updated{std::move(other.m_updated)} {}
-
-        // copy assignment operator
-        auto operator=(const T &other) -> T &
-        {
-            std::swap(m_data, other.m_data);
-            std::swap(m_updated, other.m_updated);
-            return *this;
-        }
+              m_updated{std::move(other.m_updated)} {}
 
         // move assignment operator
         auto operator=(T &&other) -> T &
@@ -85,17 +78,9 @@ namespace utility
         bool m_updated;
     };
 
-    auto any_of_modified(Observed<auto>... observers)
+    auto any_of_modified(Observed<auto>&... observers)
     {
         return (observers.modified() || ...);
-    }
-
-    auto join_strings(const auto& container, const std::string& delim) -> std::string
-    {
-        return std::accumulate(container.begin(), container.end(), std::string(), 
-        [delim](const std::string& a, const std::string& b) -> std::string { 
-            return a + (a.length() > 0 ? delim : "") + b; 
-        });
     }
 
 }
