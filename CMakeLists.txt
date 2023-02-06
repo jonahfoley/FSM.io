@@ -29,7 +29,14 @@ add_library(
 
 # Adding something we can run - Output name matches target name
 # cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
-add_executable(${TARGET} src/main.cpp include/FSM_elements.hpp)
+add_executable(
+    ${TARGET} 
+    src/main.cpp 
+    include/FSM_elements.hpp 
+    include/observer.hpp
+    include/tree.hpp
+    include/utility.hpp
+)
 target_compile_options(${TARGET} PRIVATE -Wall -Werror -Wextra -Wconversion -Wunreachable-code -Wuninitialized -pedantic-errors -Wold-style-cast -Wno-error=unused-variable -Wshadow -Wfloat-equal)
 
 # Make sure you link your targets with this command. It can also link libraries and

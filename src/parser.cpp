@@ -1,10 +1,12 @@
 #include "../include/parser.hpp"
 #include "../include/FSM_elements.hpp"
+#include "../include/tree.hpp"
+#include "../include/utility.hpp"
 
 #include <iostream>
 #include <cstring>
 #include <sstream>
-#include <unordered_map>
+#include <algorithm>
 #include <ranges>
 #include <cassert>
 #include <utility>
@@ -16,16 +18,109 @@
 
 namespace parser
 {
+    // namespaces aliases
     using namespace tinyxml2;
     namespace views  = std::views;
     namespace ranges = std::ranges;
 
+    // type aliases
+    using TransitionTree = utility::binary_tree<FSMTransition>;
+    using TransitionNode = utility::Node<FSMTransition>;
+    using TransitionMatrix  = std::vector<std::vector<std::optional<bool>>>;
+
+    // helper functions
     namespace helpers {
-        static bool to_bool(std::string_view str) {
+        static auto to_bool(std::string_view str) {
             return str == "1" | str == "True" | str == "true";
+        }
+
+        // checks if a given xmCell element is a given type based on its "style"
+        static auto elem_is_type(XMLElement *element, std::string_view test_type) -> bool
+        {
+            if(auto style = element->Attribute("style"); style != nullptr)
+            {
+                auto res = std::string_view{style} 
+                | views::split(';') 
+                | ranges::views::filter([test_type](auto &&rng) {
+                    auto actual_type = std::string_view(&*rng.begin(), ranges::distance(rng));
+                    return actual_type == test_type;
+                });
+                return !res.empty();
+            }
+            return false;             
+        };
+
+        // specialisations of elem type checked lambda
+        static auto is_predicate(XMLElement* element
+        ){ 
+            return elem_is_type(element, "rhombus");
+        };
+
+        static auto is_arrow(XMLElement* element)
+        { 
+            return elem_is_type(element, "edgeStyle=orthogonalEdgeStyle");
+        };
+
+        static auto is_state(XMLElement* element)
+        { 
+            return !is_predicate(element) & !is_arrow(element); 
+        };
+
+        // id from row/col - theyre the same!
+        static auto id_from_position(
+            std::vector<parser::FSMState>& states,
+            std::vector<parser::FSMPredicate>& predicates,
+            unsigned pos
+        ) -> std::string
+        {
+            if (pos < states.size()) 
+            {
+                return states[pos].m_id;
+            }
+            else 
+            {
+                auto offset_pos = pos - states.size();
+                return predicates[offset_pos].m_id;
+            }
+        };
+
+        // predicate from id
+        static auto pred_from_id(
+            std::vector<parser::FSMState>& states,
+            std::vector<parser::FSMPredicate>& predicates,
+            std::string_view id
+        ) -> std::optional<std::string>
+        {
+            auto predicate = predicates | std::views::filter([&id](auto& predicate){
+                return predicate.m_id == id;
+            }); 
+            if (predicate) 
+            {
+                return predicate.front().m_predicate;
+                
+            }
+            return std::nullopt;
+        };
+
+        static auto entry_is_state(
+            std::vector<parser::FSMState>& states,
+            unsigned row, 
+            unsigned col
+        )
+        {
+            return row < states.size() && col < states.size();
+        };
+
+        static auto col_is_state(
+            std::vector<parser::FSMState>& states,
+            unsigned col
+        )
+        {
+            return col < states.size();
         }
     }
 
+    // handle errors during parsing and token generation
     void HandleParseError(const ParseError err)
     {   
         switch(err)
@@ -142,7 +237,12 @@ namespace parser
         return tl::unexpected<ParseError>(ParseError::URLDecodeError);
     }
 
-    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<std::vector<FSMToken>, ParseError>
+    auto drawio_to_tokens(std::string_view drawio_xml_str) 
+        -> tl::expected<std::tuple<
+            std::vector<FSMState>,
+            std::vector<FSMPredicate>,
+            std::vector<FSMArrow>
+            >, ParseError>
     {
         XMLDocument doc;
         doc.Parse(drawio_xml_str.data());
@@ -150,33 +250,6 @@ namespace parser
         {
             return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
         }
-
-         // checks if a given xmCell element is a given type based on its "style"
-        auto elem_is_type = [](XMLElement *element, std::string_view test_type) -> bool
-        {
-            if(auto style = element->Attribute("style"); style != nullptr)
-            {
-                auto res = std::string_view{style} 
-                | views::split(';') 
-                | ranges::views::filter([test_type](auto &&rng) {
-                    auto actual_type = std::string_view(&*rng.begin(), ranges::distance(rng));
-                    return actual_type == test_type;
-                });
-                return !res.empty();
-            }
-            return false;             
-        };
-
-        // specialisations of elem type checked lambda
-        auto is_decision = [&elem_is_type](XMLElement* element){ 
-            return elem_is_type(element, "rhombus");
-        };
-        auto is_arrow = [&elem_is_type](XMLElement* element){ 
-            return elem_is_type(element, "edgeStyle=orthogonalEdgeStyle");
-        };
-        auto is_state = [&is_decision, &is_arrow](XMLElement* element){ 
-            return !is_decision(element) & !is_arrow(element); 
-        };
 
         XMLElement *pGraphModel = doc.RootElement();
         std::vector<FSMToken> toks;
@@ -199,44 +272,37 @@ namespace parser
                 }
 
                 // construct the FSMStates and copy into output tokens
-                ranges::copy(
-                    elements 
-                        | views::filter(is_state)
-                        | views::transform([](XMLElement *el) { 
-                            std::vector<std::string_view> outputs;
-                            ranges::copy(
-                                views::transform(
-                                    std::string_view{el->Attribute("value")} | views::split(std::string_view{"<br>"}),
-                                    [](auto &&rng) { return std::string_view(&*rng.begin(), ranges::distance(rng)); }
-                                ),
-                                std::back_inserter(outputs)
-                            );
-                            return FSMState{
-                                el->Attribute("id"),
-                                outputs
-                            }; 
-                        }),
-                    std::back_inserter(toks)
-                );
+                auto states = elements 
+                    | views::filter(helpers::is_state)
+                    | views::transform([](XMLElement *el) { 
+                        std::vector<std::string> outputs;
+                        ranges::copy(
+                            views::transform(
+                                std::string_view{el->Attribute("value")} | views::split(std::string_view{"<br>"}),
+                                [](auto &&rng) { return std::string(&*rng.begin(), ranges::distance(rng)); }
+                            ),
+                            std::back_inserter(outputs)
+                        );
+                        return FSMState{
+                            el->Attribute("id"),
+                            outputs
+                        }; 
+                    });
 
                 // we later index the decision blocks - which cant be done with a ranges::filter_view
                 // so copy into a sector
-                std::vector<FSMDecision> decisions;
-                ranges::copy(
-                    elements 
-                    | views::filter(is_decision)
+                auto predicates = elements 
+                    | views::filter(helpers::is_predicate)
                     | views::transform([](XMLElement *el) { 
-                        return FSMDecision{
+                        return FSMPredicate{
                             el->Attribute("id"),
                             el->Attribute("value")
                         }; 
-                    }),
-                    std::back_inserter(decisions)
-                );
+                    });
                 
                 // a range of FSMArrows
                 auto arrows = elements 
-                    | views::filter(is_arrow)
+                    | views::filter(helpers::is_arrow)
                     | views::transform([](XMLElement *el) { 
                         FSMArrow arrow{
                             el->Attribute("id"),
@@ -249,55 +315,297 @@ namespace parser
                         return arrow;
                     });
 
-                    
-                /*
-                    We must now combine the arrows and decisions into a transition. 
-                    This is a decisio block with an id, predicate, true path and false path.
-                    Its a two-stage process, in (1) and (2) below.
-                */
-
-                // (1) extract the two arrows relating to a given decision block
-                // yields a view of a range, where each element is a pair of FSMArrow's
-                auto arrow_pairs = decisions
-                    | views::transform([&arrows](auto&& el){
-                        std::string_view id = el.m_id;
-                        std::vector<FSMArrow> arrow_pair;
-                        ranges::copy(
-                            arrows | views::filter([id](auto&& arrow){ return arrow.m_source == id; }),
-                            std::back_inserter(arrow_pair)
-                        );
-                        assert(arrow_pair.size() == 2);
-                        return std::pair{arrow_pair[0], arrow_pair[1]};
-                    });
-
-                // there should be a pair of arrows for every decision block!
-                if (arrow_pairs.size() != decisions.size())
-                {
-                    return tl::unexpected<ParseError>(ParseError::DecisionPathError);
-                }
-
-                // (2) construct the FSMTransition element
-                ranges::copy(
-                    views::transform(
-                        ranges::iota_view(0, static_cast<int>(arrow_pairs.size())),
-                        [&arrow_pairs, &decisions](int i){
-                            // we have the arrow pair, but need to get true and false arrow 
-                            auto [a,b] = arrow_pairs[i];
-                            if (a.m_value)
-                            {
-                                return FSMTransition{decisions[i],a,b};
-                            }
-                            else 
-                            {
-                                return FSMTransition{decisions[i],b,a};
-                            }
-                        }),
-                    std::back_inserter(toks)
+                return std::make_tuple(
+                    utility::to_vector(states),
+                    utility::to_vector(predicates),
+                    utility::to_vector(arrows)
                 );
-                
-                return toks;
             }
         }
         return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
     }
+
+    auto build_transition_matrix(
+        std::vector<FSMState>& states,
+        std::vector<FSMPredicate>& predicates,
+        std::vector<FSMArrow>& arrows
+    ) -> TransitionMatrix
+    {
+
+        // generate the blank matrix
+        unsigned dimension = states.size() + predicates.size();
+
+        TransitionMatrix matrix;
+        for (unsigned i = 0; i < dimension; i++)
+        {
+            std::vector<std::optional<bool>> row{};
+            for (unsigned j = 0; j < dimension; j++)
+            {
+                row.push_back(std::nullopt);
+            }
+            matrix.push_back(row);
+        }
+
+        auto get_id = [](auto& el){ return el.m_id; };
+
+        auto find_pos = [&](std::string_view id)
+        {
+            unsigned pos;
+            auto state_ids = states | views::transform(get_id);
+            auto res = ranges::find(state_ids, id);
+            if (res != state_ids.end())
+            {
+                pos = std::distance(state_ids.begin(), res);
+            }
+            else 
+            {
+                auto pred_ids = predicates | views::transform(get_id);
+                auto res = ranges::find(pred_ids, id);
+                pos = states.size() + std::distance(pred_ids.begin(), res);
+            }
+            return pos;
+        };
+
+        for(const auto& arrow : arrows)
+        {
+            // deduce the row & column
+            unsigned col = find_pos(arrow.m_source);
+            unsigned row = find_pos(arrow.m_target);
+
+            // if its a decision node, the matrix value is the decision node value
+            if (arrow.m_value)
+            {
+                matrix[row][col] = arrow.m_value.value();
+            }
+            // otherwise its a state->state transition, which is always true
+            else 
+            {
+                matrix[row][col] = true;
+            }
+        }   
+
+        return matrix;
+    }
+
+    static 
+    auto process_node_v2(
+        // about the states
+        unsigned dimensions,
+        std::vector<FSMState>& states,
+        std::vector<FSMPredicate>& predicates,
+        TransitionMatrix transition_matrix,
+        // where we are
+        unsigned row, 
+        unsigned col,
+        std::unique_ptr<TransitionNode>& root
+    ) -> void
+    {        
+        auto add_node = [&](std::unique_ptr<TransitionNode>& node)
+        {
+            std::string id = helpers::id_from_position(states, predicates, row);
+            std::optional<std::string> pred = helpers::pred_from_id(states, predicates, id);
+            
+            // we are going to a decision block -> add the state and look at children
+            if (pred) 
+            {
+                FSMTransition transition(id, pred.value());
+                node = std::make_unique<TransitionNode>(transition);
+                // process each of the possible children nodes
+                for (unsigned i = 0; i < dimensions; ++i)
+                {
+                    process_node_v2(
+                        dimensions, states, predicates, transition_matrix, 
+                        i, row, node
+                    );
+                }
+            }
+            // we are going to a state -> add the state and terminate
+            else 
+            {
+                FSMTransition transition(id);
+                node = std::make_unique<TransitionNode>(transition);
+            }
+        };
+
+        if (transition_matrix[row][col].has_value())
+        {
+            if (transition_matrix[row][col].value()) 
+            {
+                add_node(root->m_left);
+            }
+            else
+            {
+                add_node(root->m_right);
+            }
+        }
+    }
+    
+    auto build_transition_tree(
+        std::vector<FSMState>& states,
+        std::vector<FSMPredicate>& predicates,
+        TransitionMatrix& transition_matrix
+    ) -> std::vector<TransitionTree>
+    {
+        fmt::print("building tree\n");
+        const unsigned dimensions = states.size() + predicates.size();
+
+        // visit each position in the transition matrix corresponding to a state
+        // for each, follow the path, until all branches lead to another state
+        // proceed with the next position
+        std::vector<TransitionTree> trees;
+        for (unsigned row = 0; row < dimensions; ++row)
+        {
+            for (unsigned col = 0; col < states.size(); ++col)
+            {           
+                if (transition_matrix[row][col].has_value()) //we got a transition
+                {                    
+                    std::string id = helpers::id_from_position(states, predicates, col);
+                    FSMTransition root(id);
+
+                    auto root_ptr = std::make_unique<TransitionNode>(root);
+                    process_node_v2(
+                        dimensions, states, predicates, transition_matrix, 
+                        row, col, root_ptr
+                    );
+                    
+                    trees.push_back(TransitionTree(std::move(root_ptr)));
+                }
+            }
+        }
+        return trees;
+    }
+
+    auto build_decisions(
+        std::vector<FSMArrow>& arrows,
+        std::vector<FSMPredicate>& predicates
+    ) -> tl::expected<std::vector<FSMDecision>, ParseError>
+    {
+        // extract the two arrows which are leaving a given decision block
+        // and the one arrow which is entering
+        auto pred_arrows = predicates
+            | views::transform([&arrows](FSMPredicate& predicate){
+                std::string_view id = predicate.m_id;
+                std::vector<FSMArrow> in_out_arrows;
+                // TODO : a better way?
+                ranges::copy(
+                    arrows | views::filter([id](FSMArrow& arrow){ return arrow.m_source == id; }),
+                    std::back_inserter(in_out_arrows)
+                );
+                ranges::copy(
+                    arrows | views::filter([id](FSMArrow& arrow){ return arrow.m_target == id; }),
+                    std::back_inserter(in_out_arrows)
+                );
+                assert(in_out_arrows.size() == 3); // two out arrows, one in arrow
+                return std::make_tuple(
+                    std::pair{in_out_arrows[0], in_out_arrows[1]},
+                    in_out_arrows[2]
+                );
+            });
+
+        // there should be a pair of arrows for every decision block!
+        if (pred_arrows.size() != predicates.size())
+        {
+            return tl::unexpected<ParseError>(ParseError::DecisionPathError);
+        }
+
+        // construct the FSMTransition element for the decision blocks and copy into output
+        auto decisions = ranges::iota_view(0, static_cast<int>(predicates.size()))
+            | views::transform([&pred_arrows, &predicates](int i){
+                // we have the arrow pair, but need to get true and false arrow 
+                auto [out_arrows,in_arrow] = pred_arrows[i];
+                auto [a,b] = out_arrows;
+                if (b.m_value) std::swap(a,b);
+                return FSMDecision{
+                    predicates[i].m_id, 
+                    in_arrow.m_source,
+                    predicates[i].m_predicate,
+                    a.m_target,
+                    b.m_target
+                };
+            });
+
+        return utility::to_vector(decisions);
+    }
+
+    static 
+    auto process_node(
+        std::vector<FSMDecision>& decisions,
+        const std::unique_ptr<TransitionNode>& node
+    ) -> void
+    {
+        auto children = decisions 
+            | views::filter([&](auto& decision){
+                return decision.m_from_path == node->m_value.m_id;; 
+            });
+
+        fmt::print("Node {} has ", node->m_value.m_id);
+
+        // append the new transition
+        if (children) 
+        {
+            // els is at most 2 in size (due to *binary* tree)
+            const FSMDecision& first  = children.front();
+            const FSMDecision& second = children.back();
+
+            // we have one element
+            if (first.m_id == second.m_id)
+            {
+                fmt::print("one child\n");
+                auto tr = FSMTransition(first.m_id, first.m_predicate);
+                node->m_left = std::make_unique<TransitionNode>(tr);
+                process_node(decisions, node->m_left);
+            }
+            // we have two elements (i.e. the left and right nodes of a decision block)
+            else 
+            {
+                fmt::print("two children\n");
+                auto tr_first  = FSMTransition(first.m_id, first.m_predicate);
+                auto tr_second = FSMTransition(second.m_id, second.m_predicate);
+                node->m_left  = std::make_unique<TransitionNode>(tr_first);
+                node->m_right = std::make_unique<TransitionNode>(tr_second);
+                process_node(decisions, node->m_left);
+                process_node(decisions, node->m_right);
+            }
+        }
+        else 
+        {
+            fmt::print("zero children\n");
+            return;
+        }
+    }
+    
+    auto build_transition_tree(
+        std::vector<FSMState>& states,
+        std::vector<FSMArrow>& arrows,
+        std::vector<FSMDecision>& decisions
+    ) -> std::vector<TransitionTree>
+    {
+        
+        // make each root node from the states
+        std::vector<std::unique_ptr<TransitionNode>> root_nodes;
+        ranges::move(
+            states | views::transform([](FSMState& state){
+                return std::make_unique<TransitionNode>(FSMTransition(state.m_id));
+            }),
+            std::back_inserter(root_nodes)
+        );
+
+        fmt::print("There are {} root nodes\n", root_nodes.size());
+
+        // recursively add each node to the tree
+        // terminates via a call to 'return' once there are no mode children
+        ranges::for_each(
+            root_nodes,
+            [&decisions, &states](std::unique_ptr<TransitionNode>& node){
+                fmt::print("Processing node: {}\n", node->m_value.m_id);
+                process_node(decisions, node); 
+            }
+        );
+
+        // transform each root node into a tree and return the result
+        auto trees = root_nodes
+            | views::transform([](std::unique_ptr<TransitionNode>& node){ return TransitionTree(std::move(node)); });
+        return utility::to_vector(trees);
+    }
+    
 }
