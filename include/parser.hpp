@@ -1,7 +1,8 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "../include/tree.hpp"
+#include "FSM_elements.hpp"
+#include "tree.hpp"
 
 #include <string_view>
 #include <optional>
@@ -10,20 +11,21 @@
 
 #include "tl/expected.hpp"
 #include "tinyxml2.h"
-#include "FSM_elements.hpp"
 
 namespace parser
 {
 
     enum class ParseError
     {
-        InvalidDrawioFile,
+        InvalidEncodedDrawioFile,
         ExtractingDrawioString,
         URLDecodeError,
         Base64DecodeError,
         InflationError,
         DrawioToToken,
-        DecisionPathError
+        DecisionPathError,
+        InvalidDecodedDrawioFile
+
     };
 
     void HandleParseError(const ParseError err);
@@ -39,41 +41,11 @@ namespace parser
 
     [[nodiscard]] 
     auto url_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>;
+    
+    using token_tuple = std::tuple<std::vector<FSMState>,std::vector<FSMPredicate>,std::vector<FSMArrow>>;
 
     [[nodiscard]] 
-    auto drawio_to_tokens(std::string_view drawio_xml_str) 
-        -> tl::expected<std::tuple<
-            std::vector<FSMState>,
-            std::vector<FSMPredicate>,
-            std::vector<FSMArrow>
-            >, ParseError>;
-
-    [[nodiscard]]
-    auto build_transition_matrix(
-        std::vector<FSMState>& states,
-        std::vector<FSMPredicate>& predicates,
-        std::vector<FSMArrow>& arrows
-    ) -> std::vector<std::vector<std::optional<bool>>>;
-
-    [[nodiscard]]
-    auto build_decisions(
-        std::vector<FSMArrow>& arrows,
-        std::vector<FSMPredicate>& predicates
-    ) -> tl::expected<std::vector<FSMDecision>, ParseError>;
-    
-    [[nodiscard]]
-    auto build_transition_tree(
-        std::vector<FSMState>& states,
-        std::vector<FSMPredicate>& predicates,
-        std::vector<std::vector<std::optional<bool>>>& transition_matrx
-    ) -> std::vector<utility::binary_tree<FSMTransition>>;
-
-    [[nodiscard]]
-    auto build_transition_tree(
-        std::vector<FSMState>& states,
-        std::vector<FSMArrow>& arrows,
-        std::vector<FSMDecision>& decisions
-    ) -> std::vector<utility::binary_tree<FSMTransition>>;
+    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<token_tuple, ParseError>;
 }
 
 #endif

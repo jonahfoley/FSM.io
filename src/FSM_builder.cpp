@@ -1,17 +1,35 @@
 #include "../include/FSM_builder.hpp"
+#include "../include/ranges_helpers.hpp"
 
 #include "fmt/format.h"
 
 namespace fsm 
 {
 
+    using namespace ::utility;
+
     FSMBuilder::FSMBuilder(
-        const std::vector<parser::FSMState>& states,
-        std::vector<TransitionTree>& transition_trees //TODO : Look into this (move)
+        std::vector<parser::FSMState>&& states,
+        std::vector<TransitionTree>&& transition_trees //TODO : Look into this (move)
     )
-        : m_state{states, std::move(transition_trees)}
+        : m_state{std::move(states), std::move(transition_trees)}
     {
         build();
+    }
+    
+    static
+    auto indent(std::string_view multi_line_str, unsigned indent_level) -> std::string
+    {
+        using namespace std::literals;
+        auto indented_strs = multi_line_str
+            | views::split("\n"sv)
+            | views::transform([&](auto&& rng){
+                std::string line(&*rng.begin(), ranges::distance(rng));
+                line.insert(0, 2 * indent_level, ' ');
+                return line;
+            })
+            | to<std::vector<std::string>>();
+        return join_strings(indented_strs, "\n");
     }
 
     auto FSMBuilder::build() -> void
@@ -22,7 +40,7 @@ namespace fsm
         std::vector<std::string> state_variables, case_states, default_outputs, output_signals, input_signals;
         std::string default_state;
 
-        // first parse - generate the drawio_id -> state name mapping
+        // first parse - generate the (drawio id) -> (state name) mapping
         for (unsigned i = 0; i < m_state.m_states.value().size(); ++i)
         {
             std::string state_name = fmt::format("s{}", i);
@@ -39,8 +57,9 @@ namespace fsm
         {
             auto current_state = ranges::find_if(
                 m_state.m_states.value(),
-                [id = tree.m_root->m_value.m_id](const auto& state){ return state.m_id == id; }
+                [root_id = tree.m_root->m_value.m_id](const auto& state){ return state.m_id == root_id; }
             );
+
             if (current_state != m_state.m_states.value().end())
             {
                 default_outputs.push_back(write_state_default_outputs(*current_state));
@@ -58,8 +77,8 @@ namespace fsm
             "  input logic {},\n"
             "  output logic {}\n"
             ");",
-            utility::join_strings(input_signals, ","),
-            utility::join_strings(output_signals, ",")
+            join_strings(input_signals, ","),
+            join_strings(output_signals, ",")
         );
 
         // for the declaration of states
@@ -68,7 +87,7 @@ namespace fsm
             "  {}\n"
             "}} state_t;\n\n"
             "state_t present_state, next_state;",
-            utility::join_strings(state_variables, ",")
+            join_strings(state_variables, ",")
         );
 
         // the synchronous register of current state
@@ -85,7 +104,7 @@ namespace fsm
         // the comb logic
         auto next_state_logic = fmt::format(
             "always_comb begin : comb\n"
-            "  {}\n"
+            "{}\n"
             "  next_state = present_state;\n"
             "  case (present_state)\n"
             "{}\n"
@@ -94,8 +113,8 @@ namespace fsm
             "    end\n"
             "  endcase\n"
             "end",
-            utility::join_strings(default_outputs, "\n  "),
-            utility::join_strings(case_states, "\n    "),
+            indent(join_strings(default_outputs, "\n"), 1),
+            indent(join_strings(case_states, "\n"), 2),
             default_state
         );
 
@@ -114,9 +133,7 @@ namespace fsm
 
     auto FSMBuilder::write() -> std::string
     {
-        if (
-            utility::any_of_modified(m_state.m_states,m_state.m_transition_trees) 
-        )
+        if (any_of_modified(m_state.m_states,m_state.m_transition_trees))
         {
             build();
         } 
@@ -149,19 +166,19 @@ namespace fsm
         std::vector<std::string> predicates;
         auto& root = tree.m_root;
         write_input_signals_impl(root, predicates);
-        return utility::join_strings(predicates,", ");
+        return join_strings(predicates,", ");
     }
 
     auto FSMBuilder::write_output_signals(const parser::FSMState& state) -> std::string
     {   
-        return utility::join_strings(state.m_outputs,", ");
+        return join_strings(state.m_outputs,", ");
     }
 
     auto FSMBuilder::write_state_default_outputs(const parser::FSMState& state ) -> std::string
     {
-        return utility::join_strings(
+        return join_strings(
             state.m_outputs | views::transform([](const auto& s){ return s + " = '0;"; }),
-            "\n  "
+            "\n"
         );
     }
 
@@ -175,16 +192,16 @@ namespace fsm
         {
             auto outputs = state.m_outputs
                 | views::transform([](const auto& s){ return s + " = '1;"; })
-                | utility::to<std::vector<std::string>>();
+                | to<std::vector<std::string>>();
 
             return fmt::format(
                 "{} : begin\n"
-                "      {}\n"
+                "{}\n"
                 "{}\n"
                 "end",
                 state_name,
-                utility::join_strings(outputs, "\n      "),
-                write_transition(transition_tree)
+                indent(join_strings(outputs, "\n"), 1),
+                indent(write_transition(transition_tree), 1)
             );
         }
         else 
@@ -194,7 +211,7 @@ namespace fsm
                 "{}\n"
                 "end",
                 state_name,
-                write_transition(transition_tree)
+                indent(write_transition(transition_tree), 1)
             );
         }
     }
@@ -214,14 +231,14 @@ namespace fsm
             // if there are children but not a decision block, then must be an error
             assert(node.m_decision.value());
             return fmt::format(
-                "      if({}) begin\n"
-                "        {}\n"
-                "      end else begin\n"
-                "        {}\n"
-                "      end\n",
+                "if({}) begin\n"
+                "{}\n"
+                "end else begin\n"
+                "{}\n"
+                "end\n",
                 node->m_value.m_predicate.value(),
-                write_transition_impl(node->m_left),
-                write_transition_impl(node->m_right)
+                indent(write_transition_impl(node->m_left), 1),
+                indent(write_transition_impl(node->m_right),1)
             );
         }
         // the start of the tree

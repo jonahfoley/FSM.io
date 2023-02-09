@@ -2,6 +2,7 @@
 #include "../include/FSM_elements.hpp"
 #include "../include/tree.hpp"
 #include "../include/utility.hpp"
+#include "../include/ranges_helpers.hpp"
 
 #include <iostream>
 #include <cstring>
@@ -63,9 +64,14 @@ namespace parser
             return elem_is_type(element, "edgeStyle=orthogonalEdgeStyle");
         };
 
+        static auto is_text(XMLElement* element)
+        { 
+            return elem_is_type(element, "text");
+        };
+
         static auto is_state(XMLElement* element)
         { 
-            return !is_predicate(element) & !is_arrow(element); 
+            return !is_predicate(element) & !is_arrow(element) & !is_text(element); 
         };
     }
 
@@ -74,14 +80,44 @@ namespace parser
     {   
         switch(err)
         {
-            case ParseError::InvalidDrawioFile:
-                throw std::runtime_error("you provided an invalid drawio file!");
+            case ParseError::InvalidEncodedDrawioFile:
+                throw std::runtime_error("<INVALID ENCODED DRAWIO FILE ERROR> : you provided an invalid drawio file!");
+                break;
+            case ParseError::ExtractingDrawioString:
+                throw std::runtime_error(
+                    "<EXTRACT STRING ERROR> : Could not extract encoded Draw.IO string"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::URLDecodeError:
+                throw std::runtime_error(
+                    "<URL DECODE ERROR> : Could not decode the Draw.IO diagram"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::Base64DecodeError:
+                throw std::runtime_error(
+                    "<BASE64 DECODE ERROR> : Could not decode the Draw.IO diagram"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::InflationError:
+                throw std::runtime_error(
+                    "<INFLATION DECODE ERROR> : Could not decode the Draw.IO diagram"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::DrawioToToken:
+                throw std::runtime_error(
+                    "<DRAWIO TO TOKEN ERROR> : Could not transform the decoded Draw.IO file to a set of token"
+                    "- are you sure that you have used *only* rhombus', rectangles, and arrow elements?");
                 break;
             case ParseError::DecisionPathError:
-                throw std::runtime_error("you have an unrouted decision block");
+                throw std::runtime_error("<DECISION PATH ERROR> : You have an unrouted decision block");
+                break;
+            case ParseError::InvalidDecodedDrawioFile:
+                throw std::runtime_error(
+                    "<INVALID DECODED DRAWIO FILE ERROR> : decoded Draw.IO"
+                    "file was invalid");
                 break;
             default:
-                throw std::runtime_error("oh no! anyway..");
+                throw std::runtime_error("Something unexpected went wrong ... try again.");
                 break;
         }
     }
@@ -93,7 +129,7 @@ namespace parser
 
         if (doc.ErrorID() != XML_SUCCESS)
         {
-            return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
+            return tl::unexpected<ParseError>(ParseError::InvalidEncodedDrawioFile);
         }
 
         XMLElement *pRootElement = doc.RootElement();
@@ -186,26 +222,21 @@ namespace parser
         return tl::unexpected<ParseError>(ParseError::URLDecodeError);
     }
 
-    auto drawio_to_tokens(std::string_view drawio_xml_str) 
-        -> tl::expected<std::tuple<
-            std::vector<FSMState>,
-            std::vector<FSMPredicate>,
-            std::vector<FSMArrow>
-            >, ParseError>
+    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<parser::token_tuple, ParseError>
     {
         XMLDocument doc;
         doc.Parse(drawio_xml_str.data());
         if (doc.ErrorID() != XML_SUCCESS)
         {
-            return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
+            return tl::unexpected<ParseError>(ParseError::InvalidDecodedDrawioFile);
         }
 
-        XMLElement *pGraphModel = doc.RootElement();
+        XMLElement *origin = doc.RootElement();
         std::vector<FSMToken> toks;
 
-        if (pGraphModel)
+        if (origin)
         {
-            XMLElement *pRoot = pGraphModel->FirstChildElement("root");
+            XMLElement *pRoot = origin->FirstChildElement("root");
             if(pRoot) 
             {   
                 // extract all the cells from the diagram
@@ -223,22 +254,20 @@ namespace parser
                 // construct the FSMStates and copy into output tokens
                 auto states = elements 
                     | views::filter(helpers::is_state)
-                    | views::transform([](XMLElement *el) { 
-                        std::vector<std::string> outputs;
-                        ranges::copy(
-                            views::transform(
-                                std::string_view{el->Attribute("value")} | views::split(std::string_view{"<br>"}),
-                                [](auto &&rng) { return std::string(&*rng.begin(), ranges::distance(rng)); }
-                            ),
-                            std::back_inserter(outputs)
-                        );
+                    | views::transform([](XMLElement *el) {
+                        std::string_view value{el->Attribute("value")}; 
+                        using namespace std::literals;
+                        auto outputs = value
+                            | views::split("<br>"sv)
+                            | views::transform([](auto &&rng) { return std::string(&*rng.begin(), ranges::distance(rng)); })
+                            | utility::to<std::vector<std::string>>();
                         return FSMState{
                             el->Attribute("id"),
                             outputs
                         }; 
                     })
                     | utility::to<std::vector<FSMState>>();
-
+                
                 // we later index the decision blocks - which cant be done with a ranges::filter_view
                 // so copy into a sector
                 auto predicates = elements 
@@ -261,7 +290,7 @@ namespace parser
                             el->Attribute("target")
                         };
                         // if the arrow is relating toa decision block, it'll have a value
-                        const char* pValue = el->Attribute("value");
+                        auto* pValue = el->Attribute("value");
                         if (pValue) arrow.m_value = helpers::to_bool(pValue);
                         return arrow;
                     })
@@ -270,6 +299,6 @@ namespace parser
                 return std::make_tuple(states,predicates,arrows);
             }
         }
-        return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
+        return tl::unexpected<ParseError>(ParseError::InvalidDecodedDrawioFile);
     }
 }

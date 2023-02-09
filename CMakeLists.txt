@@ -38,10 +38,11 @@ add_library(
 add_executable(
     ${TARGET} 
     src/main.cpp 
+    include/utility.hpp
     include/FSM_elements.hpp 
     include/observer.hpp
     include/tree.hpp
-    include/utility.hpp
+    include/ranges_helpers.hpp
 )
 target_compile_options(${TARGET} PRIVATE -Wall -Werror -Wextra -Wconversion -Wunreachable-code -Wuninitialized -pedantic-errors -Wold-style-cast -Wno-error=unused-variable -Wshadow -Wfloat-equal)
 

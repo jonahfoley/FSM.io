@@ -21,9 +21,6 @@ namespace utility
         Observed() 
             : m_data{}, m_updated{false} {};
 
-        Observed(const T &data) 
-            : m_data{data}, m_updated{true} {};
-
         Observed(T &&data) 
             : m_data{std::move(data)}, m_updated{true} {};
 
@@ -77,7 +74,6 @@ namespace utility
         T m_data;
         bool m_updated;
     };
-
     auto any_of_modified(Observed<auto>&... observers)
     {
         return (observers.modified() || ...);

@@ -1,5 +1,7 @@
 #include "../include/model.hpp"
 
+#include "fmt/format.h"
+
 namespace model 
 {
     

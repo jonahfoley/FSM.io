@@ -2,11 +2,10 @@
 #define FSM_BUILDER_H
 
 #include "FSM_elements.hpp"
-#include "utility.hpp"
 #include "tree.hpp"
 #include "observer.hpp"
+#include "utility.hpp"
 
-#include "tl/expected.hpp"
 #include "fmt/format.h"
 
 #include <vector>
@@ -15,18 +14,6 @@
 #include <algorithm>
 #include <numeric>
 #include <cassert>
-
-namespace utility
-{
-    // to implement the visitor pattern
-    template <typename... Ts>
-    struct Overload : Ts...
-    {
-        using Ts::operator()...;
-    };
-    template <class... Ts>
-    Overload(Ts...) -> Overload<Ts...>;
-}
 
 namespace fsm
 {
@@ -38,14 +25,12 @@ namespace fsm
     using TransitionTree = utility::binary_tree<parser::FSMTransition>;
     using TransitionNode = utility::Node<parser::FSMTransition>;
 
-    using namespace ::utility;
-
     class FSMBuilder
     {
     public:
         FSMBuilder(
-            const std::vector<parser::FSMState>& states,
-            std::vector<TransitionTree>& transition_trees //TODO : Look into this (move)
+            std::vector<parser::FSMState>&& states,
+            std::vector<TransitionTree>&& transition_trees 
         );
 
         // based on the vector of states and transition trees this builds the correctly
@@ -82,8 +67,8 @@ namespace fsm
         // we can just output the previously computed version
         struct State
         {
-            Observed<std::vector<parser::FSMState>> m_states;
-            Observed<std::vector<TransitionTree>> m_transition_trees;
+            utility::Observed<std::vector<parser::FSMState>> m_states;
+            utility::Observed<std::vector<TransitionTree>> m_transition_trees;
         } m_state;
 
         // maps drawio id to s{i}
