@@ -1,4 +1,5 @@
 #include "../include/parser.hpp"
+#include "../include/model.hpp"
 #include "../include/FSM_builder.hpp"
 
 #include "fmt/format.h"
@@ -9,7 +10,7 @@
 
 auto main() -> int
 {
-    std::string_view dir{"../../resources/test.xml"};
+    std::string_view dir{"../../resources/test_4.drawio"};
 
     // turn the encoded XML into tokens
     auto token_tuple =
@@ -20,19 +21,16 @@ auto main() -> int
             .and_then(parser::drawio_to_tokens)
             .or_else(parser::HandleParseError);
 
-    fmt::print("a");
     // break down the tuple into (s)tates, (p)redicates, and (a)rrows
     auto& [s, p, a] = token_tuple.value();
 
-    fmt::print("b");
     // get the decisions
-    auto m = build_transition_matrix(s, p, a);
+    auto m = model::build_transition_matrix(s, p, a);
     
-    fmt::print("c");
     // for the transition binary trees
-    auto transition_trees = build_transition_tree(s, p, m);
+    auto transition_trees = model::build_transition_tree(s, p, m);
 
-    fmt::print("d");
+    // build the output string
     auto builder = fsm::FSMBuilder(s, transition_trees);
     fmt::print("{}", builder.write());
 

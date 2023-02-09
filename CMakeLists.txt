@@ -22,10 +22,16 @@ add_library(
     include/parser.hpp
 )
 add_library(
+    model_lib STATIC 
+    src/model.cpp 
+    include/model.hpp
+)
+add_library(
     fsm_builder_lib STATIC 
     src/FSM_builder.cpp 
     include/FSM_builder.hpp
 )
+
 
 # Adding something we can run - Output name matches target name
 # cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
@@ -46,6 +52,7 @@ target_link_libraries(
     PRIVATE 
         parser_lib
         fsm_builder_lib
+        model_lib
         ZLIB::ZLIB
         CURL::libcurl
         ${CONAN_LIBS}

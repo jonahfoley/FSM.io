@@ -31,7 +31,8 @@ namespace parser
 
     // helper functions
     namespace helpers {
-        static auto to_bool(std::string_view str) {
+        static auto to_bool(std::string_view str) 
+        {
             return str == "1" | str == "True" | str == "true";
         }
 
@@ -41,19 +42,19 @@ namespace parser
             if(auto style = element->Attribute("style"); style != nullptr)
             {
                 auto res = std::string_view{style} 
-                | views::split(';') 
-                | ranges::views::filter([test_type](auto &&rng) {
-                    auto actual_type = std::string_view(&*rng.begin(), ranges::distance(rng));
-                    return actual_type == test_type;
-                });
+                    | views::split(';') 
+                    | ranges::views::filter([test_type](auto &&rng) {
+                        auto actual_type = std::string_view(&*rng.begin(), ranges::distance(rng));
+                        return actual_type == test_type;
+                    });
                 return !res.empty();
             }
             return false;             
         };
 
         // specialisations of elem type checked lambda
-        static auto is_predicate(XMLElement* element
-        ){ 
+        static auto is_predicate(XMLElement* element)
+        { 
             return elem_is_type(element, "rhombus");
         };
 
@@ -66,59 +67,6 @@ namespace parser
         { 
             return !is_predicate(element) & !is_arrow(element); 
         };
-
-        // id from row/col - theyre the same!
-        static auto id_from_position(
-            std::vector<parser::FSMState>& states,
-            std::vector<parser::FSMPredicate>& predicates,
-            unsigned pos
-        ) -> std::string
-        {
-            if (pos < states.size()) 
-            {
-                return states[pos].m_id;
-            }
-            else 
-            {
-                auto offset_pos = pos - states.size();
-                return predicates[offset_pos].m_id;
-            }
-        };
-
-        // predicate from id
-        static auto pred_from_id(
-            std::vector<parser::FSMState>& states,
-            std::vector<parser::FSMPredicate>& predicates,
-            std::string_view id
-        ) -> std::optional<std::string>
-        {
-            auto predicate = predicates | std::views::filter([&id](auto& predicate){
-                return predicate.m_id == id;
-            }); 
-            if (predicate) 
-            {
-                return predicate.front().m_predicate;
-                
-            }
-            return std::nullopt;
-        };
-
-        static auto entry_is_state(
-            std::vector<parser::FSMState>& states,
-            unsigned row, 
-            unsigned col
-        )
-        {
-            return row < states.size() && col < states.size();
-        };
-
-        static auto col_is_state(
-            std::vector<parser::FSMState>& states,
-            unsigned col
-        )
-        {
-            return col < states.size();
-        }
     }
 
     // handle errors during parsing and token generation
@@ -323,154 +271,5 @@ namespace parser
             }
         }
         return tl::unexpected<ParseError>(ParseError::InvalidDrawioFile);
-    }
-
-    auto build_transition_matrix(
-        std::vector<FSMState>& states,
-        std::vector<FSMPredicate>& predicates,
-        std::vector<FSMArrow>& arrows
-    ) -> TransitionMatrix
-    {
-
-        // generate the blank matrix
-        unsigned dimension = states.size() + predicates.size();
-
-        TransitionMatrix matrix;
-        for (unsigned i = 0; i < dimension; i++)
-        {
-            std::vector<std::optional<bool>> row{};
-            for (unsigned j = 0; j < dimension; j++)
-            {
-                row.push_back(std::nullopt);
-            }
-            matrix.push_back(row);
-        }
-
-        auto find_pos = [&](std::string_view id)
-        {
-            auto get_id = [](auto& el){ return el.m_id; };
-
-            unsigned pos;
-            auto state_ids = states | views::transform(get_id);
-            auto res = ranges::find(state_ids, id);
-            if (res != state_ids.end())
-            {
-                pos = std::distance(state_ids.begin(), res);
-            }
-            else 
-            {
-                auto pred_ids = predicates | views::transform(get_id);
-                auto res = ranges::find(pred_ids, id);
-                pos = states.size() + std::distance(pred_ids.begin(), res);
-            }
-            return pos;
-        };
-
-        for(const auto& arrow : arrows)
-        {
-            // deduce the row & column
-            unsigned col = find_pos(arrow.m_source);
-            unsigned row = find_pos(arrow.m_target);
-
-            // if its a decision node, the matrix value is the decision node value
-            if (arrow.m_value)
-            {
-                matrix[row][col] = arrow.m_value.value();
-            }
-            // otherwise its a state->state transition, which is always true
-            else 
-            {
-                matrix[row][col] = true;
-            }
-        }   
-
-        return matrix;
-    }
-
-    static 
-    auto process_node(
-        // about the states
-        unsigned dimensions,
-        std::vector<FSMState>& states,
-        std::vector<FSMPredicate>& predicates,
-        TransitionMatrix transition_matrix,
-        // where we are
-        unsigned row, 
-        unsigned col,
-        std::unique_ptr<TransitionNode>& root
-    ) -> void
-    {        
-        auto add_node = [&](std::unique_ptr<TransitionNode>& node)
-        {
-            std::string id = helpers::id_from_position(states, predicates, row);
-            std::optional<std::string> pred = helpers::pred_from_id(states, predicates, id);
-            
-            // we are going to a decision block -> add the state and look at children
-            if (pred) 
-            {
-                FSMTransition transition(id, pred.value());
-                node = std::make_unique<TransitionNode>(transition);
-                // process each of the possible children nodes
-                for (unsigned i = 0; i < dimensions; ++i)
-                {
-                    process_node(
-                        dimensions, states, predicates, transition_matrix, 
-                        i, row, node
-                    );
-                }
-            }
-            // we are going to a state -> add the state and terminate
-            else 
-            {
-                FSMTransition transition(id);
-                node = std::make_unique<TransitionNode>(transition);
-            }
-        };
-
-        if (transition_matrix[row][col].has_value())
-        {
-            if (transition_matrix[row][col].value()) 
-            {
-                add_node(root->m_left);
-            }
-            else
-            {
-                add_node(root->m_right);
-            }
-        }
-    }
-    
-    auto build_transition_tree(
-        std::vector<FSMState>& states,
-        std::vector<FSMPredicate>& predicates,
-        TransitionMatrix& transition_matrix
-    ) -> std::vector<TransitionTree>
-    {
-        const unsigned dimensions = states.size() + predicates.size();
-
-        // visit each position in the transition matrix corresponding to a state
-        // for each, follow the path, until all branches lead to another state
-        // proceed with the next position
-        std::vector<TransitionTree> trees;
-        for (unsigned row = 0; row < dimensions; ++row)
-        {
-            for (unsigned col = 0; col < states.size(); ++col)
-            {           
-                if (transition_matrix[row][col].has_value()) //we got a transition
-                {                    
-                    std::string id = helpers::id_from_position(states, predicates, col);
-                    FSMTransition root(id);
-
-                    auto root_ptr = std::make_unique<TransitionNode>(root);
-                    process_node(
-                        dimensions, states, predicates, transition_matrix, 
-                        row, col, root_ptr
-                    );
-
-                    trees.push_back(TransitionTree(std::move(root_ptr)));
-                }
-            }
-        }
-        return trees;
     }
 }
