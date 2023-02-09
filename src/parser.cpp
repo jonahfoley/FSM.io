@@ -259,7 +259,7 @@ namespace parser
                         using namespace std::literals;
                         auto outputs = value
                             | views::split("<br>"sv)
-                            | views::transform([](auto &&rng) { return std::string(&*rng.begin(), ranges::distance(rng)); })
+                            | views::transform([](auto rng) { return std::string(&*rng.begin(), ranges::distance(rng)); })
                             | utility::to<std::vector<std::string>>();
                         return FSMState{
                             el->Attribute("id"),

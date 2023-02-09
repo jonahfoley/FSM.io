@@ -21,9 +21,21 @@ namespace fsm
     auto indent(std::string_view multi_line_str, unsigned indent_level) -> std::string
     {
         using namespace std::literals;
+        /*std::string inDent(indent_level * 2, ' ');
+        return fmt::format(
+            fmt::join(
+                multi_line_str 
+                    | views::split('\n')
+                    | views::transform([](auto r) { 
+                        auto c = r | views::common;
+                        return std::string_view(c.begin(), c.end()); 
+                    })
+            ),
+            "\n"+indent
+        ); <GCC-12>*/
         auto indented_strs = multi_line_str
             | views::split("\n"sv)
-            | views::transform([&](auto&& rng){
+            | views::transform([&](auto rng){
                 std::string line(&*rng.begin(), ranges::distance(rng));
                 line.insert(0, 2 * indent_level, ' ');
                 return line;
