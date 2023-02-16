@@ -15,8 +15,8 @@
 
 #include <zlib.h>
 #include <curl/curl.h>
-#include "tinyxml2.h"
-#include "fmt/format.h"
+#include <tinyxml2.h>
+#include <fmt/format.h>
 
 namespace parser
 {
@@ -75,57 +75,15 @@ namespace parser
         };
     }
 
-    // handle errors during parsing and token generation
-    void HandleParseError(const ParseError err)
-    {   
-        switch(err)
-        {
-            case ParseError::InvalidEncodedDrawioFile:
-                throw std::runtime_error("<INVALID ENCODED DRAWIO FILE ERROR> : you provided an invalid drawio file!");
-                break;
-            case ParseError::ExtractingDrawioString:
-                throw std::runtime_error(
-                    "<EXTRACT STRING ERROR> : Could not extract encoded Draw.IO string"
-                    "- are you sure you exported the XML in encoded format?");
-                break;
-            case ParseError::URLDecodeError:
-                throw std::runtime_error(
-                    "<URL DECODE ERROR> : Could not decode the Draw.IO diagram"
-                    "- are you sure you exported the XML in encoded format?");
-                break;
-            case ParseError::Base64DecodeError:
-                throw std::runtime_error(
-                    "<BASE64 DECODE ERROR> : Could not decode the Draw.IO diagram"
-                    "- are you sure you exported the XML in encoded format?");
-                break;
-            case ParseError::InflationError:
-                throw std::runtime_error(
-                    "<INFLATION DECODE ERROR> : Could not decode the Draw.IO diagram"
-                    "- are you sure you exported the XML in encoded format?");
-                break;
-            case ParseError::DrawioToToken:
-                throw std::runtime_error(
-                    "<DRAWIO TO TOKEN ERROR> : Could not transform the decoded Draw.IO file to a set of token"
-                    "- are you sure that you have used *only* rhombus', rectangles, and arrow elements?");
-                break;
-            case ParseError::DecisionPathError:
-                throw std::runtime_error("<DECISION PATH ERROR> : You have an unrouted decision block");
-                break;
-            case ParseError::InvalidDecodedDrawioFile:
-                throw std::runtime_error(
-                    "<INVALID DECODED DRAWIO FILE ERROR> : decoded Draw.IO"
-                    "file was invalid");
-                break;
-            default:
-                throw std::runtime_error("Something unexpected went wrong ... try again.");
-                break;
-        }
-    }
-
-    auto extract_encoded_drawio(std::string_view file_name) -> tl::expected<std::string, ParseError>
+    auto extract_encoded_drawio(const std::filesystem::path& path) -> tl::expected<std::string, ParseError>
     {
+        if (path.empty())
+        {
+            return tl::unexpected<ParseError>(ParseError::EmptyPath);
+        }
+
         XMLDocument doc;
-        doc.LoadFile(file_name.data());
+        doc.LoadFile(path.c_str());
 
         if (doc.ErrorID() != XML_SUCCESS)
         {
@@ -300,5 +258,55 @@ namespace parser
             }
         }
         return tl::unexpected<ParseError>(ParseError::InvalidDecodedDrawioFile);
+    }
+
+    // handle errors during parsing and token generation
+    void HandleParseError(const ParseError err)
+    {   
+        switch(err)
+        {
+            case ParseError::EmptyPath:
+                throw std::runtime_error("<EMPTY PATH> you provided an empty path to the draw.io diagram");
+                break;
+            case ParseError::InvalidEncodedDrawioFile:
+                throw std::runtime_error("<INVALID ENCODED DRAWIO FILE ERROR> : you provided an invalid drawio file!");
+                break;
+            case ParseError::ExtractingDrawioString:
+                throw std::runtime_error(
+                    "<EXTRACT STRING ERROR> : Could not extract encoded Draw.IO string"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::URLDecodeError:
+                throw std::runtime_error(
+                    "<URL DECODE ERROR> : Could not decode the Draw.IO diagram"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::Base64DecodeError:
+                throw std::runtime_error(
+                    "<BASE64 DECODE ERROR> : Could not decode the Draw.IO diagram"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::InflationError:
+                throw std::runtime_error(
+                    "<INFLATION DECODE ERROR> : Could not decode the Draw.IO diagram"
+                    "- are you sure you exported the XML in encoded format?");
+                break;
+            case ParseError::DrawioToToken:
+                throw std::runtime_error(
+                    "<DRAWIO TO TOKEN ERROR> : Could not transform the decoded Draw.IO file to a set of token"
+                    "- are you sure that you have used *only* rhombus', rectangles, and arrow elements?");
+                break;
+            case ParseError::DecisionPathError:
+                throw std::runtime_error("<DECISION PATH ERROR> : You have an unrouted decision block");
+                break;
+            case ParseError::InvalidDecodedDrawioFile:
+                throw std::runtime_error(
+                    "<INVALID DECODED DRAWIO FILE ERROR> : decoded Draw.IO"
+                    "file was invalid");
+                break;
+            default:
+                throw std::runtime_error("Something unexpected went wrong ... try again.");
+                break;
+        }
     }
 }

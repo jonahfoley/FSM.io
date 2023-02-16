@@ -1,34 +1,28 @@
-#include "../include/parser.hpp"
-#include "../include/model.hpp"
-#include "../include/FSM_builder.hpp"
+#include "../include/app.hpp"
 
-#include "fmt/format.h"
+#include <argparse/argparse.hpp>
 
-auto main() -> int
+auto main(const int argc, char const * const * const argv) -> int
 {
-    std::string_view dir{"../../resources/test_2.drawio"};
+    argparse::ArgumentParser program("FSM.io");
 
-    // turn the encoded XML into tokens
-    auto token_tuple =
-        parser::extract_encoded_drawio(dir)
-            .and_then(parser::base64_decode)
-            .and_then(parser::inflate)
-            .and_then(parser::url_decode)
-            .and_then(parser::drawio_to_tokens)
-            .or_else(parser::HandleParseError);
-    
-    // break down the tuple into (s)tates, (p)redicates, and (a)rrows
-    auto& [s, p, a] = token_tuple.value();
+    program.add_argument("-d", "--diagram")
+        .required()
+        .help("specify the draw.io file you wish to convert.");
 
-    // get the decisions
-    auto m = model::build_transition_matrix(s, p, a);
-    
-    // for the transition binary trees
-    auto transition_trees = model::build_transition_tree(s, p, m);
+    try {
+        program.parse_args(argc, argv);
+    }
+    catch (const std::runtime_error& err) {
+        std::cerr << err.what() << std::endl;
+        std::cerr << program;
+        std::exit(1);
+    }
 
-    // build the output string
-    fsm::FSMBuilder builder{std::move(s), std::move(transition_trees)};
-    fmt::print("{}", builder.write());
-
+    if (auto d = program.present("-d")) 
+    {
+        std::filesystem::path f{*d};
+        app::run(f);
+    }
     return 0;
 }

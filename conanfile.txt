@@ -2,6 +2,9 @@
 tl-expected/1.0.0
 fmt/9.1.0
 tinyxml2/9.0.0
+libcurl/7.87.0
+zlib/1.2.13
+argparse/2.9
 
 [generators]
 cmake

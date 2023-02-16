@@ -8,15 +8,17 @@
 #include <optional>
 #include <variant>
 #include <ranges>
+#include <filesystem>
 
-#include "tl/expected.hpp"
-#include "tinyxml2.h"
+#include <tl/expected.hpp>
+#include <tinyxml2.h>
 
 namespace parser
 {
 
     enum class ParseError
     {
+        EmptyPath,
         InvalidEncodedDrawioFile,
         ExtractingDrawioString,
         URLDecodeError,
@@ -31,7 +33,7 @@ namespace parser
     void HandleParseError(const ParseError err);
 
     [[nodiscard]] 
-    auto extract_encoded_drawio(std::string_view file_name) -> tl::expected<std::string, ParseError>;
+    auto extract_encoded_drawio(const std::filesystem::path& path) -> tl::expected<std::string, ParseError>;
 
     [[nodiscard]] 
     auto inflate(std::string_view str) -> tl::expected<std::string, ParseError>;

@@ -1,7 +1,9 @@
 #include "../include/FSM_builder.hpp"
 #include "../include/ranges_helpers.hpp"
 
-#include "fmt/format.h"
+#include <ranges>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 
 namespace fsm 
 {
@@ -10,7 +12,7 @@ namespace fsm
 
     FSMBuilder::FSMBuilder(
         std::vector<parser::FSMState>&& states,
-        std::vector<TransitionTree>&& transition_trees //TODO : Look into this (move)
+        std::vector<TransitionTree>&& transition_trees
     )
         : m_state{std::move(states), std::move(transition_trees)}
     {
@@ -19,29 +21,20 @@ namespace fsm
     
     static
     auto indent(std::string_view multi_line_str, unsigned indent_level) -> std::string
-    {
-        using namespace std::literals;
-        /*std::string inDent(indent_level * 2, ' ');
+    {        
+        std::string indent(indent_level * 2, ' ');
         return fmt::format(
+            "{}{}",
+            indent,
             fmt::join(
                 multi_line_str 
                     | views::split('\n')
                     | views::transform([](auto r) { 
-                        auto c = r | views::common;
-                        return std::string_view(c.begin(), c.end()); 
-                    })
-            ),
-            "\n"+indent
-        ); <GCC-12>*/
-        auto indented_strs = multi_line_str
-            | views::split("\n"sv)
-            | views::transform([&](auto rng){
-                std::string line(&*rng.begin(), ranges::distance(rng));
-                line.insert(0, 2 * indent_level, ' ');
-                return line;
-            })
-            | to<std::vector<std::string>>();
-        return join_strings(indented_strs, "\n");
+                        return std::string_view(r.begin(), r.end()); 
+                    }),
+                "\n"+indent
+            )
+        );
     }
 
     auto FSMBuilder::build() -> void

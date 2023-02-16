@@ -1,15 +1,13 @@
 #ifndef OBSERVER_H
 #define OBSERVER_H
 
-#include "tl/expected.hpp"
-#include "fmt/format.h"
-
 #include <concepts>
 #include <numeric>
 #include <string>
 #include <algorithm>
 #include <memory>
-
+#include <functional>
+#include <utility>
 
 namespace utility
 {

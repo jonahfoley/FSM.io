@@ -3,19 +3,23 @@
 
 #include <string>
 #include <string_view>
-#include <numeric>
+#include <numeric> 
+#include <ranges>
 
-#include "fmt/format.h" 
+#include <fmt/format.h>
 
-// from: https://stackoverflow.com/questions/58808030/range-view-to-stdvector
 namespace utility
 {
-    auto join_strings(const auto& container, const std::string& delim) -> std::string
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+
+    auto join_strings(const auto& container, std::string_view delim) -> std::string
     {
-        return std::accumulate(container.begin(), container.end(), std::string(), 
-        [delim](const std::string& a, const std::string& b) -> std::string { 
-            return a + (a.length() > 0 ? delim : "") + b; 
-        });
+        return fmt::format("{}", fmt::join(
+                container | views::filter([](std::string_view s){ return !s.empty(); }), //filter the length zero elements
+                delim
+            )
+        );
     }
 }
 

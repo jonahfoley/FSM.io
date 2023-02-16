@@ -6,8 +6,6 @@
 #include <numeric>
 #include <algorithm>
 
-#include "fmt/format.h" 
-
 // from: https://stackoverflow.com/questions/58808030/range-view-to-stdvector
 namespace utility
 {

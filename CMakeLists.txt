@@ -5,14 +5,19 @@ project(${TARGET} CXX)
 
 # configure C++ standard
 set (CMAKE_CXX_STANDARD 20)
+set(CONAN_SYSTEM_INCLUDES ON)
 
-# configure conan packages
+# use fmtlib in header only mode
+add_definitions(-DFMT_HEADER_ONLY)
+
+# configure conan packages - install conan if necessary
+if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
+   message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
+   file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/v0.10/conan.cmake"
+                 "${CMAKE_BINARY_DIR}/conan.cmake")
+endif()
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
-
-# Find packages go here.
-find_package(ZLIB REQUIRED)
-find_package(CURL REQUIRED)
 
 # Other common choices are STATIC, SHARED, and MODULE
 # Output libname matches target name, with the usual extensions on your system
@@ -31,7 +36,11 @@ add_library(
     src/FSM_builder.cpp 
     include/FSM_builder.hpp
 )
-
+add_library(
+    app_lib STATIC 
+    src/app.cpp 
+    include/app.hpp
+)
 
 # Adding something we can run - Output name matches target name
 # cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
@@ -44,18 +53,85 @@ add_executable(
     include/tree.hpp
     include/ranges_helpers.hpp
 )
-target_compile_options(${TARGET} PRIVATE -Wall -Werror -Wextra -Wconversion -Wunreachable-code -Wuninitialized -pedantic-errors -Wold-style-cast -Wno-error=unused-variable -Wshadow -Wfloat-equal)
+
+target_compile_options(
+    ${TARGET} PRIVATE
+    -Werror
+    -Wpedantic
+    -Wall
+    -Wextra
+    -Wdouble-promotion
+    -Wformat=2
+    -Wformat-overflow=2
+    -Wformat-signedness
+    -Wformat-truncation=2
+    -Wnull-dereference
+    -Wimplicit-fallthrough=5
+    -Wmissing-include-dirs
+    -Wshift-overflow=2
+    -Wswitch-enum
+    -Wsync-nand
+    -Wunused-parameter
+    -Wunused-const-variable=1
+    -Wunknown-pragmas
+    -Wstringop-overflow=4
+    -Wsuggest-override
+    -Walloc-zero
+    -Walloca
+    -Warray-bounds=2
+    -Wduplicated-branches
+    -Wduplicated-cond
+    -Wtrampolines
+    -Wfloat-equal
+    -Wshadow
+    -Waligned-new=all
+    -Wplacement-new=2
+    -Wundef
+    -Wunused-macros
+    -Wcast-qual
+    -Wcast-align
+    -Wconditionally-supported
+    -Wconversion
+    -Wzero-as-null-pointer-constant
+    -Wdate-time
+    -Wuseless-cast
+    -Wsign-conversion
+    -Wsized-deallocation
+    -Wlogical-op
+    -Wmissing-declarations
+    -Wnormalized=id
+    -Wpacked
+    -Wredundant-decls
+    -Wrestrict
+    -Winvalid-pch
+    -Wvector-operation-performance
+    -Wdisabled-optimization
+    -Wstack-protector
+# Additional warnings for C++ dialect
+    -Wctor-dtor-privacy
+    -Wnoexcept
+    -Wnon-virtual-dtor
+    -Wstrict-null-sentinel
+    -Wold-style-cast
+    -Woverloaded-virtual
+    -Wsign-promo
+    -Wunreachable-code 
+    -Wuninitialized 
+    -pedantic-errors 
+    -Wold-style-cast 
+    -Wno-error=unused-variable 
+    -Wshadow
+)
 
 # Make sure you link your targets with this command. It can also link libraries and
 # even flags, so linking a target that does not exist will not give a configure-time error.
 target_link_libraries(
     ${TARGET} 
     PRIVATE 
+        app_lib
         parser_lib
         fsm_builder_lib
         model_lib
-        ZLIB::ZLIB
-        CURL::libcurl
         ${CONAN_LIBS}
 )
 

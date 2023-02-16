@@ -6,14 +6,13 @@
 #include "observer.hpp"
 #include "utility.hpp"
 
-#include "fmt/format.h"
-
 #include <vector>
 #include <string>
 #include <ranges>
 #include <algorithm>
 #include <numeric>
 #include <cassert>
+#include <unordered_map>
 
 namespace fsm
 {
