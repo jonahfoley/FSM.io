@@ -92,7 +92,7 @@ namespace fsm
             "  {}\n"
             "}} state_t;\n\n"
             "state_t present_state, next_state;",
-            join_strings(state_variables, ",")
+            join_strings(state_variables, ", ")
         );
 
         // the synchronous register of current state
@@ -138,7 +138,7 @@ namespace fsm
 
     auto FSMBuilder::write() -> std::string
     {
-        if (any_of_modified(m_state.m_states,m_state.m_transition_trees))
+        if (any_of_modified(m_state.m_states, m_state.m_transition_trees))
         {
             build();
         } 
@@ -182,8 +182,7 @@ namespace fsm
     auto FSMBuilder::write_state_default_outputs(const parser::FSMState& state ) -> std::string
     {
         return join_strings(
-            state.m_outputs | views::transform([](const auto& s){ return s + " = '0;"; }),
-            "\n"
+            state.m_outputs | views::transform([](const auto& s){ return s + " = '0;"; }), "\n"
         );
     }
 
@@ -196,8 +195,7 @@ namespace fsm
         if (state.m_outputs.size())
         {
             auto outputs = state.m_outputs
-                | views::transform([](const auto& s){ return s + " = '1;"; })
-                | to<std::vector<std::string>>();
+                | views::transform([](const auto& s){ return s + " = '1;"; });
 
             return fmt::format(
                 "{} : begin\n"
@@ -234,15 +232,15 @@ namespace fsm
         else if(node->m_left != nullptr && node->m_right != nullptr)
         {   
             // if there are children but not a decision block, then must be an error
-            assert(node.m_decision.value());
+            assert(node->m_value.m_predicate.has_value());
             return fmt::format(
                 "if({}) begin\n"
                 "{}\n"
                 "end else begin\n"
                 "{}\n"
-                "end\n",
+                "end",
                 node->m_value.m_predicate.value(),
-                indent(write_transition_impl(node->m_left), 1),
+                indent(write_transition_impl(node->m_left),1),
                 indent(write_transition_impl(node->m_right),1)
             );
         }

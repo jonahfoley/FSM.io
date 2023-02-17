@@ -31,7 +31,8 @@ namespace parser
     using TransitionMatrix  = std::vector<std::vector<std::optional<bool>>>;
 
     // helper functions
-    namespace helpers {
+    namespace helpers 
+    {
         static auto to_bool(std::string_view str) 
         {
             return str == "1" | str == "True" | str == "true";
@@ -140,7 +141,6 @@ namespace parser
 
     auto base64_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>
     {
-
         std::string out;
         std::unordered_map<unsigned char, int> T;
         for (int i = 0; i < 64; i++)

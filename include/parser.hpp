@@ -32,22 +32,17 @@ namespace parser
 
     void HandleParseError(const ParseError err);
 
-    [[nodiscard]] 
-    auto extract_encoded_drawio(const std::filesystem::path& path) -> tl::expected<std::string, ParseError>;
+    [[nodiscard]] auto extract_encoded_drawio(const std::filesystem::path &path) -> tl::expected<std::string, ParseError>;
 
-    [[nodiscard]] 
-    auto inflate(std::string_view str) -> tl::expected<std::string, ParseError>;
+    [[nodiscard]] auto inflate(std::string_view str) -> tl::expected<std::string, ParseError>;
 
-    [[nodiscard]] 
-    auto base64_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>;
+    [[nodiscard]] auto base64_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>;
 
-    [[nodiscard]] 
-    auto url_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>;
-    
-    using token_tuple = std::tuple<std::vector<FSMState>,std::vector<FSMPredicate>,std::vector<FSMArrow>>;
+    [[nodiscard]] auto url_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>;
 
-    [[nodiscard]] 
-    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<token_tuple, ParseError>;
+    using token_tuple = std::tuple<std::vector<FSMState>, std::vector<FSMPredicate>, std::vector<FSMArrow>>;
+
+    [[nodiscard]] auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<token_tuple, ParseError>;
 }
 
 #endif
