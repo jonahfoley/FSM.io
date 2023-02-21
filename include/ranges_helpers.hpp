@@ -27,9 +27,7 @@ namespace utility
 
         // Type acts as a tag to find the correct operator| overload
         template <typename C>
-        struct to_helper
-        {
-        };
+        struct to_helper {};
 
         // This actually does the work
         template <typename Container, std::ranges::range R>

@@ -72,6 +72,7 @@ namespace utility
         T m_data;
         bool m_updated;
     };
+    
     auto any_of_modified(Observed<auto>&... observers)
     {
         return (observers.modified() || ...);

@@ -8,7 +8,7 @@
 
 namespace app
 {
-    auto run(const std::filesystem::path& path) -> void
+    auto run(const std::filesystem::path &path) -> void
     {
         // turn the encoded XML into tokens
         auto token_tuple =
@@ -18,13 +18,13 @@ namespace app
                 .and_then(parser::url_decode)
                 .and_then(parser::drawio_to_tokens)
                 .or_else(parser::HandleParseError);
-        
+
         // break down the tuple into (s)tates, (p)redicates, and (a)rrows
-        auto& [s, p, a] = token_tuple.value();
+        auto &[s, p, a] = token_tuple.value();
 
         // get the decisions
         auto m = model::build_transition_matrix(s, p, a);
-        
+
         // for the transition binary trees
         auto transition_trees = model::build_transition_tree(s, p, m);
 
