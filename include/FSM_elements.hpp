@@ -23,12 +23,22 @@ namespace parser
     {
         FSMState(
             std::string_view id,
+            std::string_view state_name,
             const std::vector<std::string> &outputs)
             : FSMElement{id},
+              m_state_name{state_name},
+              m_outputs{outputs} {}
+
+        FSMState(
+            std::string_view id,
+            const std::vector<std::string> &outputs)
+            : FSMElement{id},
+              m_state_name{std::nullopt},
               m_outputs{outputs} {}
 
         auto operator<=>(const FSMState&) const = default;
 
+        std::optional<std::string> m_state_name;
         std::vector<std::string> m_outputs;
     };
 

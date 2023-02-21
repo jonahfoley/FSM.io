@@ -12,6 +12,7 @@
 #include <cassert>
 #include <utility>
 #include <algorithm>
+#include <regex>
 
 #include <zlib.h>
 #include <curl/curl.h>
@@ -31,7 +32,8 @@ namespace parser
     using TransitionMatrix  = std::vector<std::vector<std::optional<bool>>>;
 
     // helper functions
-    namespace helpers {
+    namespace helpers 
+    {
         static auto to_bool(std::string_view str) 
         {
             return str == "1" | str == "True" | str == "true";
@@ -213,16 +215,69 @@ namespace parser
                 auto states = elements 
                     | views::filter(helpers::is_state)
                     | views::transform([](XMLElement *el) {
-                        std::string_view value{el->Attribute("value")}; 
-                        using namespace std::literals;
-                        auto outputs = value
-                            | views::split("<br>"sv)
-                            | views::transform([](auto rng) { return std::string(&*rng.begin(), ranges::distance(rng)); })
-                            | utility::to<std::vector<std::string>>();
-                        return FSMState{
-                            el->Attribute("id"),
-                            outputs
-                        }; 
+                        /*
+                            the state has a value of the form either:
+
+                            (1) $STATE=xyz;                    // explicit state name, no outputs
+                            or
+                            (2) $OUTPUTS={a,b,c,d};            // implicity inferred state name
+                            or
+                            (3) {a,b,c,d}                      // implicity inferred outputs and state name
+                            or
+                            (4) $STATE=xyz;$OUTPUTS={a,b,c,d}; // explicit state name
+                            or
+                            (5) __                             // no outputs, implicity inferred state name
+
+                            may contain line breaks denoted by the <br> token
+                        */
+
+                        // sanitise the input token of all font, size, and line breaks
+                        std::string value{el->Attribute("value")};
+                        std::regex font_reg("<[^>]*>");
+                        value = std::regex_replace(value, font_reg, "");
+
+                        auto toks = value
+                            | views::split(';')
+                            | views::transform([](auto&& r) { return std::string_view(r.begin(), r.end()); });
+
+                        auto name = toks
+                            | views::filter([](std::string_view tok){ 
+                                return std::regex_match(std::string(tok), std::regex("\\$STATE=[A-Za-z0-9]+")); 
+                            })
+                            | views::transform([](std::string_view tok) {
+                                tok.remove_prefix(std::min(tok.find_first_of("=")+1, tok.size()));
+                                return tok;
+                            });
+                        
+                        auto outputs = toks
+                            | views::filter([](std::string_view tok){ 
+                                return std::regex_match(std::string(tok), 
+                                    std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,]+\\}|\\{[A-Za-z0-9,]+\\}"));
+                            })
+                            | views::transform([](std::string_view tok) {
+                                tok.remove_prefix(std::min(tok.find_first_of("{")+1, tok.size()));
+                                tok.remove_suffix(std::min(tok.size()-tok.find_first_of("}"), tok.size()));
+                                return tok 
+                                    | views::split(',') 
+                                    | views::transform([](auto r){ return std::string(r.begin(), r.end()); })
+                                    | utility::to<std::vector<std::string>>();
+                            });
+
+                        if (name.empty()) // implicitly generated name
+                        {
+                            return FSMState{
+                                el->Attribute("id"),
+                                outputs.front()
+                            };
+                        }
+                        else
+                        {
+                            return FSMState{
+                                el->Attribute("id"),
+                                name.front(),
+                                outputs.front()
+                            };
+                        }
                     })
                     | utility::to<std::vector<FSMState>>();
                 
