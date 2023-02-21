@@ -36,7 +36,19 @@ namespace parser
     {
         static auto to_bool(std::string_view str) 
         {
-            return str == "1" | str == "True" | str == "true";
+            // TODO: transform to lower first to reduce ammount of checks..
+            if (str == "1" | str == "True" | str == "true" | str == "Yes" | str == "yes") 
+            {
+                return true;
+            } 
+            else if (str == "0" | str == "False" | str == "false" | str == "No" | str == "no" )
+            {
+                return false;
+            }
+            else 
+            {
+                return false; // TODO: proper error resolution here
+            }
         }
 
         // checks if a given xmCell element is a given type based on its "style"
@@ -312,10 +324,12 @@ namespace parser
         switch(err)
         {
             case ParseError::EmptyPath:
-                throw std::runtime_error("<EMPTY PATH> you provided an empty path to the draw.io diagram");
+                throw std::runtime_error(
+                    "<EMPTY PATH> you provided an empty path to the draw.io diagram");
                 break;
             case ParseError::InvalidEncodedDrawioFile:
-                throw std::runtime_error("<INVALID ENCODED DRAWIO FILE ERROR> : you provided an invalid drawio file!");
+                throw std::runtime_error(
+                    "<INVALID ENCODED DRAWIO FILE ERROR> : you provided an invalid drawio file!");
                 break;
             case ParseError::ExtractingDrawioString:
                 throw std::runtime_error(
@@ -343,7 +357,8 @@ namespace parser
                     "- are you sure that you have used *only* rhombus', rectangles, and arrow elements?");
                 break;
             case ParseError::DecisionPathError:
-                throw std::runtime_error("<DECISION PATH ERROR> : You have an unrouted decision block");
+                throw std::runtime_error(
+                    "<DECISION PATH ERROR> : You have an unrouted decision block");
                 break;
             case ParseError::InvalidDecodedDrawioFile:
                 throw std::runtime_error(
@@ -351,7 +366,8 @@ namespace parser
                     "file was invalid");
                 break;
             default:
-                throw std::runtime_error("Something unexpected went wrong ... try again.");
+                throw std::runtime_error(
+                    "Something unexpected went wrong ... try again.");
                 break;
         }
     }
