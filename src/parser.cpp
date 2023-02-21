@@ -232,6 +232,7 @@ namespace parser
                             (2) $OUTPUTS={a,b,c,d};            // implicity inferred state name
                             (3) {a,b,c,d}                      // implicity inferred outputs and state name
                             (4) $STATE=xyz;$OUTPUTS={a,b,c,d}; // explicit state name
+                            (4) $STATE=xyz;${a,b,c,d};         // explicit state name, implicit outputs
                             (5) __                             // no outputs, implicity inferred state name
                         */
 

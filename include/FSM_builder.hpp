@@ -43,13 +43,7 @@ namespace fsm
     private:
         // get the input signals (the predicates of the decision nodes) by recursively
         // traversion the transition tree and extracting the predicates at each node
-        auto write_input_signals(const TransitionTree& tree) -> std::string;
-
-        // joins together, into a comma-separated string, all the output signals for a given state
-        auto write_output_signals(const parser::FSMState& state) -> std::string;
-
-        // joins together, in a comma-serparated string, all of the output signals set to their default value of 0
-        auto write_state_default_outputs(const parser::FSMState& state) -> std::string;
+        auto input_signals(const TransitionTree& tree) -> std::vector<std::string>;
 
         // for a given state this writes it's case statement for the next state logic
         auto write_case_state(

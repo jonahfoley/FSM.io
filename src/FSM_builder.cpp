@@ -42,7 +42,7 @@ namespace fsm
         // there is one transition tree for every state
         assert(m_state.m_states.value().size() == m_state.m_transition_trees.value().size());
 
-        std::vector<std::string> state_variables, case_states, default_outputs, output_signals, input_signals;
+        std::vector<std::string> state_variables, case_states;
         std::string default_state;
 
         // first parse - generate the (drawio id) -> (state name) mapping
@@ -57,22 +57,29 @@ namespace fsm
                 default_state = state_name;
             }
         }
-        // second parse - build each of the case statements
-        for (const auto& tree : m_state.m_transition_trees.value())
+        
+        // second parse - make the case statements and then extract unique inputs and outputs from the states/trees
+        std::vector<std::string> outputs, inputs;
+        for (const auto& state : m_state.m_states.value())
         {
-            auto current_state = ranges::find_if(
-                m_state.m_states.value(),
-                [root_id = tree.m_root->m_value.m_id](const auto& state){ return state.m_id == root_id; }
+            const auto current_tree = ranges::find_if(
+                m_state.m_transition_trees.value(),
+                [&state](const auto& tree){ return state.m_id == tree.m_root->m_value.m_id; }
             );
-
-            if (current_state != m_state.m_states.value().end())
-            {
-                default_outputs.push_back(write_state_default_outputs(*current_state));
-                case_states.push_back(write_case_state(m_id_state_map[current_state->m_id], *current_state, tree));
-                output_signals.push_back(write_output_signals(*current_state));
-            }
-            // write the input signal (predicate of transition tree)
-            input_signals.push_back(write_input_signals(tree));
+            case_states.push_back(
+                write_case_state(m_id_state_map[state.m_id], state, *current_tree)
+            );
+            // copy over the unique inputs and outputs
+            ranges::copy_if(
+                input_signals(*current_tree),
+                std::back_inserter(inputs),
+                [&inputs](std::string_view s){ return ranges::find(inputs, s) == inputs.end(); }
+            );
+            ranges::copy_if(
+                state.m_outputs,
+                std::back_inserter(outputs),
+                [&outputs](std::string_view s){ return ranges::find(outputs, s) == outputs.end(); }
+            );
         }
 
         // write the headers
@@ -82,8 +89,8 @@ namespace fsm
             "  input logic {},\n"
             "  output logic {}\n"
             ");",
-            join_strings(input_signals, ","),
-            join_strings(output_signals, ",")
+            join_strings(inputs, ","),
+            join_strings(outputs, ",")
         );
 
         // for the declaration of states
@@ -118,7 +125,10 @@ namespace fsm
             "    end\n"
             "  endcase\n"
             "end",
-            indent(join_strings(default_outputs, "\n"), 1),
+            indent(
+                join_strings(outputs | views::transform([](std::string_view s){ return std::string(s) + " = '0;"; }), "\n"),
+                1
+            ),
             indent(join_strings(case_states, "\n"), 2),
             default_state
         );
@@ -147,7 +157,7 @@ namespace fsm
     }
 
     static
-    auto write_input_signals_impl(
+    auto input_signals_impl(
         const std::unique_ptr<TransitionNode>& node,
         std::vector<std::string>& predicates
     ) -> void
@@ -158,8 +168,8 @@ namespace fsm
             {
                 predicates.push_back(node->m_value.m_predicate.value());
             }
-            write_input_signals_impl(node->m_left, predicates);
-            write_input_signals_impl(node->m_right, predicates);
+            input_signals_impl(node->m_left, predicates);
+            input_signals_impl(node->m_right, predicates);
         }
         else 
         {
@@ -167,25 +177,12 @@ namespace fsm
         }
     }
 
-    auto FSMBuilder::write_input_signals(const TransitionTree& tree) -> std::string
+    auto FSMBuilder::input_signals(const TransitionTree& tree) -> std::vector<std::string>
     {
         std::vector<std::string> predicates;
         auto& root = tree.m_root;
-        write_input_signals_impl(root, predicates);
-        return join_strings(predicates,", ");
-    }
-
-    auto FSMBuilder::write_output_signals(const parser::FSMState& state) -> std::string
-    {   
-        return join_strings(state.m_outputs,", ");
-    }
-
-    auto FSMBuilder::write_state_default_outputs(const parser::FSMState& state ) -> std::string
-    {
-        return join_strings(
-            state.m_outputs | views::transform([](std::string_view s){ return std::string(s) + " = '0;"; }),
-            "\n"
-        );
+        input_signals_impl(root, predicates);
+        return predicates;
     }
 
     auto FSMBuilder::write_case_state(
@@ -194,7 +191,7 @@ namespace fsm
         const TransitionTree& transition_tree
     ) -> std::string
     {
-        if (state.m_outputs.size())
+        if (!state.m_outputs.empty())
         {
             auto outputs = state.m_outputs
                 | views::transform([](std::string_view s){ return std::string(s) + " = '1;"; });
