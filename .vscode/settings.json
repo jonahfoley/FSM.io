@@ -80,7 +80,8 @@
         "iomanip": "cpp",
         "typeindex": "cpp",
         "bitset": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "filesystem": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

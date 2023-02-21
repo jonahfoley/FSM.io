@@ -6,9 +6,11 @@
 
 #include <fmt/format.h>
 
+#include <fstream>
+
 namespace app
 {
-    auto run(const std::filesystem::path &path) -> void
+    auto run(const std::filesystem::path &path, Options options) -> void
     {
         // turn the encoded XML into tokens
         auto token_tuple =
@@ -30,6 +32,17 @@ namespace app
 
         // build the output string
         fsm::FSMBuilder builder{std::move(s), std::move(transition_trees)};
-        fmt::print("{}", builder.write());
+        
+        if (options.out_file.has_value())
+        {
+            std::ofstream output_file;
+            output_file.open(options.out_file.value(), std::ios::out | std::ios::trunc);
+            output_file << builder.write();
+            output_file.close();
+        }
+        else 
+        {
+            fmt::print("{}", builder.write());
+        }
     }
 }

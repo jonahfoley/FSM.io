@@ -8,7 +8,10 @@ auto main(const int argc, char const * const * const argv) -> int
 
     program.add_argument("-d", "--diagram")
         .required()
-        .help("specify the draw.io file you wish to convert.");
+        .default_value("../../resources/test.drawio")
+        .help("Specify the draw.io file you wish to convert.");
+    program.add_argument("-o", "--outfile")
+        .help("Specify the file you wish to write the output of the conversion too (optional)");
 
     try {
         program.parse_args(argc, argv);
@@ -19,10 +22,15 @@ auto main(const int argc, char const * const * const argv) -> int
         std::exit(1);
     }
 
-    if (auto d = program.present("-d")) 
+    // set up the optional arguments
+    app::Options options;
+    if (auto o = program.present("-o")) 
     {
-        std::filesystem::path f{*d};
-        app::run(f);
+        options.out_file = std::filesystem::path{*o};
     }
+
+    // run with the options and the required arguments
+    const std::filesystem::path infile{program.get("-d")};
+    app::run(infile, options);
     return 0;
 }

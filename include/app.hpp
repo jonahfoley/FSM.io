@@ -2,10 +2,17 @@
 #define APP_H
 
 #include <filesystem>
+#include <optional>
+#include <string>
 
 namespace app 
 {
-    auto run(const std::filesystem::path& path) -> void;
+    struct Options
+    {
+        std::optional<std::filesystem::path> out_file; 
+    };
+
+    auto run(const std::filesystem::path& path, Options options) -> void;
 }
 
 #endif

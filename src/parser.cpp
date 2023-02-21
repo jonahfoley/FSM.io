@@ -46,8 +46,8 @@ namespace parser
             {
                 auto res = std::string_view{style} 
                     | views::split(';') 
-                    | ranges::views::filter([test_type](auto &&rng) {
-                        auto actual_type = std::string_view(&*rng.begin(), ranges::distance(rng));
+                    | ranges::views::filter([test_type](auto &&r) {
+                        auto actual_type = std::string_view(r.begin(), r.end());
                         return actual_type == test_type;
                     });
                 return !res.empty();
@@ -216,24 +216,16 @@ namespace parser
                     | views::transform([](XMLElement *el) {
                         /*
                             the state has a value of the form either:
-
                             (1) $STATE=xyz;                    // explicit state name, no outputs
-                            or
                             (2) $OUTPUTS={a,b,c,d};            // implicity inferred state name
-                            or
                             (3) {a,b,c,d}                      // implicity inferred outputs and state name
-                            or
                             (4) $STATE=xyz;$OUTPUTS={a,b,c,d}; // explicit state name
-                            or
                             (5) __                             // no outputs, implicity inferred state name
-
-                            may contain line breaks denoted by the <br> token
                         */
 
                         // sanitise the input token of all font, size, and line breaks
                         std::string value{el->Attribute("value")};
-                        std::regex font_reg("<[^>]*>");
-                        value = std::regex_replace(value, font_reg, "");
+                        value = std::regex_replace(value, std::regex("<[^>]*>"), "");
 
                         auto toks = value
                             | views::split(';')
