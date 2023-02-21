@@ -138,6 +138,7 @@ namespace fsm
 
     auto FSMBuilder::write() -> std::string
     {
+        // use the cached string if the states and transition trees have not been modified
         if (any_of_modified(m_state.m_states, m_state.m_transition_trees))
         {
             build();

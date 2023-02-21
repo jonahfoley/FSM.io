@@ -241,7 +241,7 @@ namespace parser
 
                         auto name = toks
                             | views::filter([](std::string_view tok){ 
-                                return std::regex_match(std::string(tok), std::regex("\\$STATE=[A-Za-z0-9]+")); 
+                                return std::regex_match(std::string(tok), std::regex("\\$STATE=[A-Za-z0-9_@./#&+-]+")); 
                             })
                             | views::transform([](std::string_view tok) {
                                 tok.remove_prefix(std::min(tok.find_first_of("=")+1, tok.size()));
@@ -251,7 +251,7 @@ namespace parser
                         auto outputs = toks
                             | views::filter([](std::string_view tok){ 
                                 return std::regex_match(std::string(tok), 
-                                    std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,]+\\}|\\{[A-Za-z0-9,]+\\}"));
+                                    std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,_@./#&+-]+\\}|\\{[A-Za-z0-9,_@./#&+-]+\\}"));
                             })
                             | views::transform([](std::string_view tok) {
                                 tok.remove_prefix(std::min(tok.find_first_of("{")+1, tok.size()));
