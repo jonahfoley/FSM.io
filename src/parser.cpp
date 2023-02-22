@@ -193,7 +193,7 @@ namespace parser
         return tl::unexpected<ParseError>(ParseError::URLDecodeError);
     }
 
-    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<parser::token_tuple, ParseError>
+    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<::TokenTuple, ParseError>
     {
         XMLDocument doc;
         doc.Parse(drawio_xml_str.data());
@@ -203,8 +203,6 @@ namespace parser
         }
 
         XMLElement *origin = doc.RootElement();
-        std::vector<FSMToken> toks;
-
         if (origin)
         {
             XMLElement *pRoot = origin->FirstChildElement("root");
@@ -267,11 +265,14 @@ namespace parser
                                     | utility::to<std::vector<std::string>>();
                             });
 
+                        bool is_default_state = ranges::find(toks, "$DEFAULT") != toks.end();
+
                         if (name.empty()) // implicitly generated name
                         {
                             return FSMState{
                                 el->Attribute("id"),
-                                outputs.front()
+                                outputs.front(),
+                                is_default_state
                             };
                         }
                         else
@@ -279,7 +280,8 @@ namespace parser
                             return FSMState{
                                 el->Attribute("id"),
                                 name.front(),
-                                outputs.front()
+                                outputs.front(),
+                                is_default_state
                             };
                         }
                     })

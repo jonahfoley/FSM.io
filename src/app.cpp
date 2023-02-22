@@ -28,10 +28,10 @@ namespace app
         auto m = model::build_transition_matrix(s, p, a);
 
         // for the transition binary trees
-        auto transition_trees = model::build_transition_tree(s, p, m);
+        auto state_transition_map = model::build_transition_tree_map(s, p, m);
 
         // build the output string
-        fsm::FSMBuilder builder{std::move(s), std::move(transition_trees)};
+        fsm::FSMBuilder builder{state_transition_map};
         
         if (options.out_file.has_value())
         {

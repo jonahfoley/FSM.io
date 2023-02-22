@@ -17,22 +17,41 @@ namespace utility
     public:
         // ctors
         Observed() 
-            : m_data{}, m_updated{false} {};
+            : m_data{nullptr}, m_updated{false} {};
 
-        Observed(T &&data) 
-            : m_data{std::move(data)}, m_updated{true} {};
+        Observed(T &data) 
+            : m_data{&data}, m_updated{true} {};
+
+        Observed(T* data) 
+            : m_data{data}, m_updated{true} {};
+
+        // copy ctor
+        Observed(const Observed& other) 
+            : m_data{other.m_data},
+              m_updated{other.m_updated} {}
 
         // move ctor
-        Observed(Observed &&other)
-            : m_data{std::move(other.m_data)},
+        Observed(Observed&& other)
+            : m_data{other.m_data},
               m_updated{std::move(other.m_updated)} {}
+
+        // copy assignment operator
+        auto operator=(const T& other) -> T &
+        {
+            if (this != &other)
+            {
+                m_data    = other.m_data;
+                m_updated = other.m_updated;
+            }
+            return *this;
+        }
 
         // move assignment operator
         auto operator=(T &&other) -> T &
         {
             if (this != &other)
             {
-                m_data = std::exchange(other.m_data, {});
+                m_data    = std::exchange(other.m_data, {});
                 m_updated = std::exchange(other.m_updated, true);
             }
             return *this;
@@ -42,7 +61,7 @@ namespace utility
         //template <typename U> requires(std::same_as<T, U>)
         auto write(const T &value) -> void
         {
-            m_data = value;
+            *m_data = value;
             m_updated = true;
         }
 
@@ -52,7 +71,7 @@ namespace utility
         auto call(Ret (U::*func)(Args...), Args... args) 
         {
             m_updated = true;
-            return std::invoke(func, m_data, args...);
+            return std::invoke(func, *m_data, args...);
         }
 
         // to test if it has since been modified (i.e. written without reading)
@@ -65,11 +84,11 @@ namespace utility
         auto value() -> T &
         {
             m_updated = false;
-            return m_data;
+            return *m_data;
         }
 
     private:
-        T m_data;
+        T* m_data;
         bool m_updated;
     };
     

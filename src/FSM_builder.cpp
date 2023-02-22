@@ -2,19 +2,20 @@
 #include "../include/ranges_helpers.hpp"
 
 #include <ranges>
+#include <unordered_map>
+
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
+
 namespace fsm 
 {
-
     using namespace ::utility;
 
     FSMBuilder::FSMBuilder(
-        std::vector<parser::FSMState>&& states,
-        std::vector<TransitionTree>&& transition_trees
+        StateTransitionMap& state_transition_map
     )
-        : m_state{std::move(states), std::move(transition_trees)}
+        : m_state_transition_map{state_transition_map}
     {
         build();
     }
@@ -39,39 +40,37 @@ namespace fsm
 
     auto FSMBuilder::build() -> void
     {
-        // there is one transition tree for every state
-        assert(m_state.m_states.value().size() == m_state.m_transition_trees.value().size());
-
+        // first parse - generate the (drawio id) -> (state name) mapping
         std::vector<std::string> state_variables, case_states;
         std::string default_state;
-
-        // first parse - generate the (drawio id) -> (state name) mapping
-        for (unsigned i = 0; i < m_state.m_states.value().size(); ++i)
+        unsigned count = 0;
+        for (const auto& [state, tree] : m_state_transition_map.value())
         {
-            std::string state_name = m_state.m_states.value()[i].m_state_name.value_or(fmt::format("s{}", i));
+            std::string state_name = state.m_state_name.value_or(fmt::format("s{}", count));
             state_variables.push_back(state_name);
-            m_id_state_map[m_state.m_states.value()[i].m_id] = state_name;
+            m_id_state_map[state.m_id] = state_name;
 
-            if (i == 0)
+            if (state.m_is_default_state)
             {
                 default_state = state_name;
             }
+            count++;
         }
-        
+
+        // if no default state is specified, assign a best guess
+        if (default_state.empty() && !m_state_transition_map.value().empty())
+        {
+            default_state = m_id_state_map[m_state_transition_map.value().front().first.m_id];
+        } 
+
         // second parse - make the case statements and then extract unique inputs and outputs from the states/trees
         std::vector<std::string> outputs, inputs;
-        for (const auto& state : m_state.m_states.value())
+        for (const auto& [state, tree] : m_state_transition_map.value())
         {
-            const auto current_tree = ranges::find_if(
-                m_state.m_transition_trees.value(),
-                [&state](const auto& tree){ return state.m_id == tree.m_root->m_value.m_id; }
-            );
-            case_states.push_back(
-                write_case_state(m_id_state_map[state.m_id], state, *current_tree)
-            );
+            case_states.emplace_back(write_case_state(m_id_state_map[state.m_id], state, tree));
             // copy over the unique inputs and outputs
             ranges::copy_if(
-                input_signals(*current_tree),
+                input_signals(tree),
                 std::back_inserter(inputs),
                 [&inputs](std::string_view s){ return ranges::find(inputs, s) == inputs.end(); }
             );
@@ -149,7 +148,7 @@ namespace fsm
     auto FSMBuilder::write() -> std::string
     {
         // use the cached string if the states and transition trees have not been modified
-        if (any_of_modified(m_state.m_states, m_state.m_transition_trees))
+        if (any_of_modified(m_state_transition_map))
         {
             build();
         } 

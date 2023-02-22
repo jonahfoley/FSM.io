@@ -5,6 +5,7 @@
 #include "tree.hpp"
 #include "observer.hpp"
 #include "utility.hpp"
+#include "type_aliases.hpp"
 
 #include <vector>
 #include <string>
@@ -20,17 +21,10 @@ namespace fsm
     namespace views  = std::views;
     namespace ranges = std::ranges;
 
-    // type aliases
-    using TransitionTree = utility::binary_tree<parser::FSMTransition>;
-    using TransitionNode = utility::Node<parser::FSMTransition>;
-
     class FSMBuilder
     {
     public:
-        FSMBuilder(
-            std::vector<parser::FSMState>&& states,
-            std::vector<TransitionTree>&& transition_trees 
-        );
+        FSMBuilder(StateTransitionMap& state_transition_map);
 
         // based on the vector of states and transition trees this builds the correctly
         // formatted output string of the corresponding systemverilog implementation
@@ -58,11 +52,7 @@ namespace fsm
         
         // if these get modified, we need to update m_fsm_string, else we know
         // we can just output the previously computed version
-        struct State
-        {
-            utility::Observed<std::vector<parser::FSMState>> m_states;
-            utility::Observed<std::vector<TransitionTree>> m_transition_trees;
-        } m_state;
+        utility::Observed<StateTransitionMap> m_state_transition_map;
 
         // maps drawio id to s{i}
         std::unordered_map<std::string, std::string> m_id_state_map;

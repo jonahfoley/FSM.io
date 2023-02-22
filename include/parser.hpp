@@ -3,6 +3,7 @@
 
 #include "FSM_elements.hpp"
 #include "tree.hpp"
+#include "type_aliases.hpp"
 
 #include <string_view>
 #include <optional>
@@ -15,7 +16,6 @@
 
 namespace parser
 {
-
     enum class ParseError
     {
         EmptyPath,
@@ -40,9 +40,7 @@ namespace parser
 
     [[nodiscard]] auto url_decode(std::string_view encoded_str) -> tl::expected<std::string, ParseError>;
 
-    using token_tuple = std::tuple<std::vector<FSMState>, std::vector<FSMPredicate>, std::vector<FSMArrow>>;
-
-    [[nodiscard]] auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<token_tuple, ParseError>;
+    [[nodiscard]] auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<::TokenTuple, ParseError>;
 }
 
 #endif

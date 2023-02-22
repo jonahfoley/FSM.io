@@ -9,12 +9,7 @@ namespace model
     namespace views  = std::views;
     namespace ranges = std::ranges;
 
-    // type aliases
-    using TransitionTree = utility::binary_tree<parser::FSMTransition>;
-    using TransitionNode = utility::Node<parser::FSMTransition>;
-    using TransitionMatrix  = std::vector<std::vector<std::optional<bool>>>;
-
-    namespace helpers
+        namespace helpers
     {
         static auto id_from_position(
             const std::vector<parser::FSMState>& states,
@@ -164,18 +159,18 @@ namespace model
         }
     }
     
-    auto build_transition_tree(
+    auto build_transition_tree_map(
         const std::vector<parser::FSMState>& states,
         const std::vector<parser::FSMPredicate>& predicates,
         const TransitionMatrix& transition_matrix
-    ) -> std::vector<TransitionTree>
+    ) -> StateTransitionMap
     {
         const unsigned dimensions = states.size() + predicates.size();
 
         // visit each position in the transition matrix corresponding to a state
         // for each, follow the path, until all branches lead to another state
         // proceed with the next position
-        std::vector<TransitionTree> trees;
+        StateTransitionMap state_tree_map;
         for (unsigned row = 0; row < dimensions; ++row)
         {
             for (unsigned col = 0; col < states.size(); ++col)
@@ -191,10 +186,10 @@ namespace model
                         row, col, root_ptr
                     );
 
-                    trees.push_back(TransitionTree(std::move(root_ptr)));
+                    state_tree_map.push_back({states[col], TransitionTree(std::move(root_ptr))});
                 }
             }
         }
-        return trees;
+        return state_tree_map;
     }
 }
