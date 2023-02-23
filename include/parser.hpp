@@ -3,7 +3,6 @@
 
 #include "FSM_elements.hpp"
 #include "tree.hpp"
-#include "type_aliases.hpp"
 
 #include <string_view>
 #include <optional>

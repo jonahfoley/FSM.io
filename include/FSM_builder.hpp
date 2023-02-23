@@ -5,7 +5,6 @@
 #include "tree.hpp"
 #include "observer.hpp"
 #include "utility.hpp"
-#include "type_aliases.hpp"
 
 #include <vector>
 #include <string>
@@ -35,10 +34,6 @@ namespace fsm
         auto write() -> std::string;
     
     private:
-        // get the input signals (the predicates of the decision nodes) by recursively
-        // traversion the transition tree and extracting the predicates at each node
-        auto input_signals(const TransitionTree& tree) -> std::vector<std::string>;
-
         // for a given state this writes it's case statement for the next state logic
         auto write_case_state(
             std::string_view state_name,

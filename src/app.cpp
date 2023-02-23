@@ -1,8 +1,8 @@
 #include "../include/app.hpp"
 
 #include "../include/parser.hpp"
-#include "../include/model.hpp"
 #include "../include/FSM_builder.hpp"
+#include "../include/transition_matrix.hpp"
 
 #include <fmt/format.h>
 
@@ -25,14 +25,13 @@ namespace app
         auto &[s, p, a] = token_tuple.value();
 
         // get the decisions
-        auto m = model::build_transition_matrix(s, p, a);
-
-        // for the transition binary trees
+        model::TransitionMatrix m(s, a, p);
         auto state_transition_map = model::build_transition_tree_map(s, p, m);
 
         // build the output string
-        fsm::FSMBuilder builder{state_transition_map};
-        
+        fsm::FSMBuilder builder(state_transition_map);
+
+        // write the result        
         if (options.out_file.has_value())
         {
             std::ofstream output_file;

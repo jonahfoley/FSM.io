@@ -27,14 +27,14 @@ add_library(
     include/parser.hpp
 )
 add_library(
-    model_lib STATIC 
-    src/model.cpp 
-    include/model.hpp
-)
-add_library(
     fsm_builder_lib STATIC 
     src/FSM_builder.cpp 
     include/FSM_builder.hpp
+)
+add_library(
+    transition_matrix_lib STATIC 
+    src/transition_matrix.cpp 
+    include/transition_matrix.hpp
 )
 add_library(
     app_lib STATIC 
@@ -42,16 +42,17 @@ add_library(
     include/app.hpp
 )
 
+
 # Adding something we can run - Output name matches target name
 # cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 add_executable(
     ${TARGET} 
     src/main.cpp 
     include/utility.hpp
-    include/FSM_elements.hpp 
     include/observer.hpp
     include/tree.hpp
     include/ranges_helpers.hpp
+    include/FSM_elements.hpp
 )
 
 target_compile_options(
@@ -131,7 +132,7 @@ target_link_libraries(
         app_lib
         parser_lib
         fsm_builder_lib
-        model_lib
+        transition_matrix_lib
         ${CONAN_LIBS}
 )
 

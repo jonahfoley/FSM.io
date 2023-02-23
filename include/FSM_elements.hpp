@@ -1,6 +1,8 @@
 #ifndef FSM_ELEMENTS_H
 #define FSM_ELEMENTS_H
 
+#include "tree.hpp"
+
 #include <vector>
 #include <string>
 #include <variant>
@@ -12,11 +14,10 @@ namespace parser
     {
         FSMElement() = default;
         FSMElement(
-            std::string_view id
-        )
+            std::string_view id)
             : m_id{id} {}
 
-        auto operator<=>(const FSMElement&) const = default;
+        auto operator<=>(const FSMElement &) const = default;
 
         std::string m_id;
     };
@@ -28,8 +29,7 @@ namespace parser
             std::string_view id,
             std::string_view state_name,
             const std::vector<std::string> &outputs,
-            const bool is_default_state
-        )
+            const bool is_default_state)
             : FSMElement{id},
               m_state_name{state_name},
               m_outputs{outputs},
@@ -38,14 +38,13 @@ namespace parser
         FSMState(
             std::string_view id,
             const std::vector<std::string> &outputs,
-            const bool is_default_state
-        )
+            const bool is_default_state)
             : FSMElement{id},
               m_state_name{std::nullopt},
               m_outputs{outputs},
               m_is_default_state{is_default_state} {}
 
-        auto operator<=>(const FSMState&) const = default;
+        auto operator<=>(const FSMState &) const = default;
 
         std::optional<std::string> m_state_name;
         std::vector<std::string> m_outputs;
@@ -57,12 +56,11 @@ namespace parser
         FSMPredicate() = default;
         FSMPredicate(
             std::string_view id,
-            std::string_view predicate
-        )
+            std::string_view predicate)
             : FSMElement{id},
               m_predicate{predicate} {}
 
-        auto operator<=>(const FSMPredicate&) const = default;
+        auto operator<=>(const FSMPredicate &) const = default;
 
         std::string m_predicate;
     };
@@ -73,8 +71,7 @@ namespace parser
         FSMArrow(
             std::string_view id,
             std::string_view source,
-            std::string_view target
-        )
+            std::string_view target)
             : FSMElement{id},
               m_source{source},
               m_target{target},
@@ -84,14 +81,13 @@ namespace parser
             std::string_view id,
             std::string_view source,
             std::string_view target,
-            const bool value
-        )
+            const bool value)
             : FSMElement{id},
               m_source{source},
               m_target{target},
               m_value{value} {}
-            
-        auto operator<=>(const FSMArrow&) const = default;
+
+        auto operator<=>(const FSMArrow &) const = default;
 
         std::string m_source;
         std::string m_target;
@@ -101,21 +97,20 @@ namespace parser
     struct FSMDecision : public FSMElement
     {
         FSMDecision() = default;
-        
+
         FSMDecision(
             std::string_view id,
             std::string_view from_path,
             std::string_view predicate,
             std::string_view true_path,
-            std::string_view false_path
-        )
+            std::string_view false_path)
             : FSMElement{id},
-              m_from_path{from_path},  
-              m_predicate{predicate},  
-              m_true_path{true_path},  
+              m_from_path{from_path},
+              m_predicate{predicate},
+              m_true_path{true_path},
               m_false_path{false_path} {}
 
-        auto operator<=>(const FSMDecision&) const = default;
+        auto operator<=>(const FSMDecision &) const = default;
 
         std::string m_from_path;
         std::string m_predicate;
@@ -128,22 +123,30 @@ namespace parser
         FSMTransition() = default;
 
         FSMTransition(
-            std::string_view id
-        )
+            std::string_view id)
             : FSMElement{id},
               m_predicate{std::nullopt} {}
 
         FSMTransition(
             std::string_view id,
-            std::string_view predicate
-        )
+            std::string_view predicate)
             : FSMElement{id},
               m_predicate{predicate} {}
 
-        auto operator<=>(const FSMTransition&) const = default;
+        auto operator<=>(const FSMTransition &) const = default;
 
         std::optional<std::string> m_predicate;
     };
-} 
+}
+
+using States_t = std::vector<parser::FSMState>;
+using Arrows_t = std::vector<parser::FSMArrow>;
+using Predicates_t = std::vector<parser::FSMPredicate>;
+using Connections_t = std::vector<std::vector<std::optional<bool>>>;
+
+using TokenTuple = std::tuple<States_t, Predicates_t, Arrows_t>;
+using TransitionTree = utility::binary_tree<parser::FSMTransition>;
+using TransitionNode = utility::Node<parser::FSMTransition>;
+using StateTransitionMap = std::vector<std::pair<parser::FSMState, TransitionTree>>;
 
 #endif

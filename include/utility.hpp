@@ -13,7 +13,7 @@ namespace utility
     namespace ranges = std::ranges;
     namespace views = std::views;
 
-    auto join_strings(const auto& container, std::string_view delim) -> std::string
+    auto join_non_empty_strings(auto&& container, std::string_view delim) -> std::string
     {
         return fmt::format("{}", fmt::join(
                 container | views::filter([](std::string_view s){ return !s.empty(); }), //filter the length zero elements

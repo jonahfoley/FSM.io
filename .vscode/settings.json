@@ -81,7 +81,8 @@
         "typeindex": "cpp",
         "bitset": "cpp",
         "regex": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "cassert": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
