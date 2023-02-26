@@ -40,11 +40,17 @@ namespace parser
             const static auto false_tokens = {"0", "no", "No", "False", "false"};
 
             if (ranges::find(true_tokens, str) != true_tokens.end())
+            {
                 return true;
+            }
             else if(ranges::find(false_tokens, str) != false_tokens.end())
+            {
                 return false;
-            else 
-                return tl::unexpected<ParseError>(ParseError::InvalidBooleanSpecifier);          
+            }   
+            else
+            {
+                return tl::unexpected<ParseError>(ParseError::InvalidBooleanSpecifier);     
+            } 
         }
 
         // checks if a given xmCell element is a given type based on its "style"
@@ -206,11 +212,11 @@ namespace parser
             using namespace std::literals;
             /*
             Valid expressions are
-            (1) $STATE=xyz;
-            (2) $OUTPUTS={a,b,c,d};
-            (3) {a,b,c,d}
-            (4) $DEFAULT};e
-            (5) __
+                (1) $STATE=xyz;
+                (2) $OUTPUTS={a,b,c,d};
+                (3) {a,b,c,d}
+                (4) $DEFAULT};e
+                (5) __
             Which are ; delimited, in any order
             */
 
@@ -235,7 +241,8 @@ namespace parser
             // get the outputs string (i.e. OutputA,OutputB,...) (if it exists)
             std::vector<std::string> outputs;
             auto outputs_match = [](std::string_view tok) { 
-                return std::regex_match(std::string(tok), std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,_@./#&+-]+\\}|\\{[A-Za-z0-9,_@./#&+-]+\\}")); 
+                return std::regex_match(std::string(tok), 
+                    std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,_@./#&+-]+\\}|\\{[A-Za-z0-9,_@./#&+-]+\\}")); 
             };
             if (auto outputs_tok = ranges::find_if(toks, outputs_match); outputs_tok != toks.end())
             {
@@ -289,8 +296,8 @@ namespace parser
         {
             /*
             Predicates are of the form:
-            (1) X                 // if X == 1 -> true path, else false path
-            (2) X <comparator> 1  // if X <comparator> 1 -> true path, else false path
+                (1) X                 // if X == 1 -> true path, else false path
+                (2) X <comparator> 1  // if X <comparator> 1 -> true path, else false path
             where
             <comparator> \in {==, !=, <, <=, >, >=}
             */

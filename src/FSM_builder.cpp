@@ -68,90 +68,14 @@ namespace fsm
         return predicates;
     }
 
-    
-    auto FSMBuilder::write_transition_impl(
-        const std::unique_ptr<TransitionNode>& node
-    ) -> std::string
+    auto FSMBuilder::write() -> std::string
     {
-        // never should have just m_right be non-null 
-        assert(node->m_left != nullptr && node->m_right == nullptr);
-
-        // once we are at the leaf nodes we can print the transition
-        if(node->m_left == nullptr && node->m_right == nullptr)
+        // use the cached string if the states and transition trees have not been modified
+        if (any_of_modified(m_state_transition_map))
         {
-            return fmt::format("next_state = {};",  m_id_state_map[node->m_value.m_id]);
-        }
-        else if(node->m_left != nullptr && node->m_right != nullptr)
-        {   
-            // if there are children but not a decision block, then must be an error
-            assert(node->m_value.m_predicate.has_value());
-            return fmt::format(
-                "if({}) begin\n"
-                "{}\n"
-                "end else begin\n"
-                "{}\n"
-                "end",
-                node->m_value.m_predicate.value().to_string(),
-                indent(write_transition_impl(node->m_left), 1),
-                indent(write_transition_impl(node->m_right), 1)
-            );
-        }
-        // the start of the tree
-        else if (node->m_left != nullptr && node->m_right == nullptr)
-        {
-            return write_transition_impl(node->m_left);
-        }
-        else
-        {
-            return std::string{};
-        }
-    }
-
-    auto FSMBuilder::write_transition(const TransitionTree& transition_tree) -> std::string
-    {
-        const auto& root = transition_tree.m_root;
-        if (root != nullptr)
-        {
-            return write_transition_impl(root);
-        }
-        // an empty circuit
-        else 
-        {
-            return std::string{};
-        }
-    }
-
-    auto FSMBuilder::write_case_state(
-        std::string_view state_name,
-        const parser::FSMState& state, 
-        const TransitionTree& transition_tree
-    ) -> std::string
-    {
-        if (state.m_outputs.has_value())
-        {
-            auto outputs = state.m_outputs.value()
-                | views::transform([](std::string_view s){ return std::string(s) + " = '1;"; });
-
-            return fmt::format(
-                "{} : begin\n"
-                "{}\n"
-                "{}\n"
-                "end",
-                state_name,
-                indent(join_non_empty_strings(outputs, "\n"), 1),
-                indent(write_transition(transition_tree), 1)
-            );
-        }
-        else 
-        {
-            return fmt::format(
-                "{} : begin\n"
-                "{}\n"
-                "end",
-                state_name,
-                indent(write_transition(transition_tree), 1)
-            );
-        }
+            build();
+        } 
+        return m_fsm_string;
     }
 
     auto FSMBuilder::build() -> void
@@ -254,15 +178,88 @@ namespace fsm
         );
     }
 
-    auto FSMBuilder::write() -> std::string
+    auto FSMBuilder::write_transition_impl(
+        const std::unique_ptr<TransitionNode>& node
+    ) -> std::string
     {
-        // use the cached string if the states and transition trees have not been modified
-        if (any_of_modified(m_state_transition_map))
+        // never should have just m_right be non-null 
+        assert(node->m_left != nullptr && node->m_right == nullptr);
+
+        // once we are at the leaf nodes we can print the transition
+        if(node->m_left == nullptr && node->m_right == nullptr)
         {
-            build();
-        } 
-        return m_fsm_string;
+            return fmt::format("next_state = {};",  m_id_state_map[node->m_value.m_id]);
+        }
+        else if(node->m_left != nullptr && node->m_right != nullptr)
+        {   
+            // if there are children but not a decision block, then must be an error
+            assert(node->m_value.m_predicate.has_value());
+            return fmt::format(
+                "if({}) begin\n"
+                "{}\n"
+                "end else begin\n"
+                "{}\n"
+                "end",
+                node->m_value.m_predicate.value().to_string(),
+                indent(write_transition_impl(node->m_left), 1),
+                indent(write_transition_impl(node->m_right), 1)
+            );
+        }
+        // the start of the tree
+        else if (node->m_left != nullptr && node->m_right == nullptr)
+        {
+            return write_transition_impl(node->m_left);
+        }
+        else
+        {
+            return std::string{};
+        }
     }
 
-    
+    auto FSMBuilder::write_transition(const TransitionTree& transition_tree) -> std::string
+    {
+        const auto& root = transition_tree.m_root;
+        if (root != nullptr)
+        {
+            return write_transition_impl(root);
+        }
+        // an empty circuit
+        else 
+        {
+            return std::string{};
+        }
+    }
+
+    auto FSMBuilder::write_case_state(
+        std::string_view state_name,
+        const parser::FSMState& state, 
+        const TransitionTree& transition_tree
+    ) -> std::string
+    {
+        if (state.m_outputs.has_value())
+        {
+            auto outputs = state.m_outputs.value()
+                | views::transform([](std::string_view s){ return std::string(s) + " = '1;"; });
+
+            return fmt::format(
+                "{} : begin\n"
+                "{}\n"
+                "{}\n"
+                "end",
+                state_name,
+                indent(join_non_empty_strings(outputs, "\n"), 1),
+                indent(write_transition(transition_tree), 1)
+            );
+        }
+        else 
+        {
+            return fmt::format(
+                "{} : begin\n"
+                "{}\n"
+                "end",
+                state_name,
+                indent(write_transition(transition_tree), 1)
+            );
+        }
+    }
 }
