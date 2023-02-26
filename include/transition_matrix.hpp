@@ -10,6 +10,8 @@
 #include <vector>
 #include <unordered_map>
 
+#include "fmt/format.h"
+
 namespace model
 {
     class TransitionMatrix
@@ -29,6 +31,9 @@ namespace model
 
         auto rank() -> unsigned;
         auto rank() const -> unsigned;
+
+        auto print() -> void;
+        auto print() const -> void;
 
         auto set(const unsigned row, const unsigned col, const bool value) -> void;
 

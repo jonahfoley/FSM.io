@@ -48,7 +48,7 @@ namespace fsm
         {
             if(node->m_value.m_predicate.has_value())
             {
-                predicates.push_back(node->m_value.m_predicate.value());
+                predicates.push_back(node->m_value.m_predicate.value().m_variable);
             }
             input_signals_impl(node->m_left, predicates);
             input_signals_impl(node->m_right, predicates);
@@ -91,7 +91,7 @@ namespace fsm
                 "end else begin\n"
                 "{}\n"
                 "end",
-                node->m_value.m_predicate.value(),
+                node->m_value.m_predicate.value().to_string(),
                 indent(write_transition_impl(node->m_left), 1),
                 indent(write_transition_impl(node->m_right), 1)
             );
@@ -127,9 +127,9 @@ namespace fsm
         const TransitionTree& transition_tree
     ) -> std::string
     {
-        if (!state.m_outputs.empty())
+        if (state.m_outputs.has_value())
         {
-            auto outputs = state.m_outputs 
+            auto outputs = state.m_outputs.value()
                 | views::transform([](std::string_view s){ return std::string(s) + " = '1;"; });
 
             return fmt::format(
@@ -185,7 +185,7 @@ namespace fsm
             });
 
         auto outputs = m_state_transition_map.value()
-            | views::transform([](auto&& p){ return p.first.m_outputs; })
+            | views::transform([](auto&& p){ return p.first.m_outputs.value_or(std::vector<std::string>()); })
             | views::join;
 
         auto inputs = m_state_transition_map.value()

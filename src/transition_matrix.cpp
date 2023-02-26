@@ -3,9 +3,11 @@
 #include <cassert>
 #include <ranges>
 
+#include <iostream>
+
 namespace model 
 {
-    namespace views = std::views;
+    namespace views  = std::views;
     namespace ranges = std::ranges;
 
     TransitionMatrix::TransitionMatrix() 
@@ -19,11 +21,15 @@ namespace model
         const Predicates_t& predicates
     ) 
         : m_rank{static_cast<unsigned>(states.size()+predicates.size())},
-          m_connections(states.size()+predicates.size(), 
-            std::vector<std::optional<bool>>(states.size()+predicates.size(), std::nullopt))
+          m_connections([&](){
+              auto sz = states.size()+predicates.size();
+              using matrix_t = decltype(m_connections);
+              return matrix_t(sz, matrix_t::value_type(sz, std::nullopt));
+          }())
     {
         populate_connection_matrix(states, arrows, predicates);
     }
+
     auto TransitionMatrix::populate_connection_matrix(
         const States_t& states, 
         const Arrows_t& arrows, 
@@ -71,11 +77,13 @@ namespace model
 
     auto TransitionMatrix::operator() (unsigned row, unsigned col) -> std::optional<bool>&
     { 
+        assert(row < m_rank && col < m_rank); 
         return m_connections[row][col];
     }
 
     auto TransitionMatrix::operator() (unsigned row, unsigned col) const -> std::optional<bool>
     { 
+        assert(row < m_rank && col < m_rank); 
         return m_connections[row][col];
     }
 
@@ -91,8 +99,34 @@ namespace model
 
     auto TransitionMatrix::set(const unsigned row, const unsigned col, const bool value) -> void
     {
-        assert(row <= m_rank && col <= m_rank);
+        assert(row < m_rank && col < m_rank); // 0 .. rank-1
         m_connections[row][col] = value;
+    }
+
+    auto TransitionMatrix::print() -> void
+    {
+        for (const auto& row : m_connections)
+        {
+            for (const auto& elem : row)
+            {
+                if (elem.has_value()) fmt::print("{} ", elem.value());
+                else fmt::print("null");
+            }
+            fmt::print("\n");
+        }
+    }
+
+    auto TransitionMatrix::print() const -> void
+    {
+        for (const auto& row : m_connections)
+        {
+            for (const auto& elem : row)
+            {
+                if (elem.has_value()) fmt::print("{} ", elem.value());
+                else fmt::print("null");
+            }
+            fmt::print("\n");
+        }
     }
 
     namespace helpers
@@ -117,14 +151,14 @@ namespace model
         static auto pred_from_id(
             const std::vector<parser::FSMPredicate>& predicates,
             const std::string_view id
-        ) -> std::optional<std::string>
+        ) -> std::optional<parser::FSMPredicate>
         {
             auto predicate = predicates | std::views::filter([&id](auto& predicate){
                 return predicate.m_id == id;
             }); 
             if (predicate) 
             {
-                return predicate.front().m_predicate;
+                return predicate.front();
             }
             return std::nullopt;
         };
@@ -142,15 +176,14 @@ namespace model
         {        
             auto add_node = [&](std::unique_ptr<TransitionNode>& node)
             {
-                std::string id = id_from_position(states, predicates, row);
-                std::optional<std::string> pred = pred_from_id(predicates, id);
+                auto id = id_from_position(states, predicates, row);
+                auto pred = pred_from_id(predicates, id);
                 
                 // we are going to a decision block -> add the state and look at children
                 if (pred) 
                 {
-                    parser::FSMTransition transition(id, pred.value());
+                    parser::FSMTransition transition(pred.value());
                     node = std::make_unique<TransitionNode>(transition);
-
                     // process each of the possible children nodes
                     for (unsigned i = 0; i < transition_matrix.rank(); ++i)
                     {

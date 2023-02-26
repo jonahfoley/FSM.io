@@ -34,7 +34,7 @@ namespace parser
     // helper functions
     namespace helpers 
     {
-        static auto to_bool(std::string_view str) 
+        static auto to_bool(std::string_view str)  -> tl::expected<bool, ParseError>
         {
             // TODO: transform to lower first to reduce ammount of checks..
             if (str == "1" | str == "True" | str == "true" | str == "Yes" | str == "yes") 
@@ -47,7 +47,7 @@ namespace parser
             }
             else 
             {
-                return false; // TODO: proper error resolution here
+                return tl::unexpected<ParseError>(ParseError::InvalidBooleanSpecifier); // TODO: proper error resolution here
             }
         }
 
@@ -66,6 +66,17 @@ namespace parser
             }
             return false;             
         };
+
+        static auto sanitise(std::string_view s)
+        {
+            return std::regex_replace(std::string(s), std::regex("<[^>]*>"), "");
+        }
+
+        template<typename T>
+        static auto has_error(const tl::expected<T, ParseError>& e)
+        { 
+            return !e.has_value();
+        }   
 
         // specialisations of elem type checked lambda
         static auto is_predicate(XMLElement* element)
@@ -193,7 +204,204 @@ namespace parser
         return tl::unexpected<ParseError>(ParseError::URLDecodeError);
     }
 
-    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<::TokenTuple, ParseError>
+    static auto states_from_xml_elements(const std::vector<XMLElement*>& elements) 
+        -> tl::expected<std::vector<FSMState>,ParseError>
+    {
+        auto to_FSMState = [](XMLElement *el) 
+        {
+            using namespace std::literals;
+            /*
+            Valid expressions are
+            (1) $STATE=xyz;                    
+            (2) $OUTPUTS={a,b,c,d};            
+            (3) {a,b,c,d}                      
+            (4) $DEFAULT};e
+            (5) __                             
+            Which are ; delimited, in any order
+            */
+
+            // sanitise the input token of all font, size, and line breaks
+            std::string value{helpers::sanitise(el->Attribute("value"))};
+            auto toks = value
+                | views::split(';')
+                | views::transform([](auto r){ return std::string_view(r.begin(), r.end()); });
+
+            // get the state name token (if it exists)
+            std::string name;
+            if(auto name_tok = ranges::find_if(toks, [](std::string_view tok){ 
+                return std::regex_match(std::string(tok), std::regex("\\$STATE=[A-Za-z0-9_@./#&+-]+")); 
+            }); name_tok != toks.end())
+            {
+                std::string_view name_tok_v{*name_tok};
+                name_tok_v.remove_prefix(std::min(name_tok_v.find_first_of("=")+1, name_tok_v.size()));
+                name = name_tok_v;
+            }
+
+            // get the outputs string (i.e. OutputA,OutputB,...) (if it exists)
+            std::string outputs;
+            if (auto outputs_tok = ranges::find_if(toks, [](std::string_view tok){ 
+                return std::regex_match(std::string(tok), std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,_@./#&+-]+\\}|\\{[A-Za-z0-9,_@./#&+-]+\\}"));
+            }); outputs_tok != toks.end())
+            {
+                std::string_view outputs_tok_v{*outputs_tok};
+                outputs_tok_v.remove_prefix(std::min(outputs_tok_v.find("{"sv)+1, outputs_tok_v.size()));
+                outputs_tok_v.remove_suffix(std::max(outputs_tok_v.size()-outputs_tok_v.find_first_of("}"), std::size_t(0)));
+                outputs = outputs_tok_v;
+            }
+
+            bool is_default_state = ranges::find(toks, "$DEFAULT") != toks.end();
+            std::string id{helpers::sanitise(el->Attribute("id"))};
+
+            if (outputs.empty())
+            {
+                if (name.empty())
+                {
+                    return FSMState(id, is_default_state);
+                }
+                else 
+                {
+                    return FSMState(id, name, is_default_state);
+                }
+            }
+            else
+            {
+                auto outputs_vec = outputs
+                    | views::split(',')
+                    | views::transform([](auto r){ return std::string(r.begin(), r.end()); })
+                    | utility::to<std::vector<std::string>>();
+
+                if (name.empty())
+                {
+                    return FSMState(id, outputs_vec, is_default_state);
+                }
+                else 
+                {
+                    return FSMState(id, name, outputs_vec, is_default_state);
+                }
+            }
+        };
+
+        // construct the FSMStates and copy into output tokens
+        return elements 
+            | views::filter(helpers::is_state)
+            | views::transform(to_FSMState)
+            | utility::to<std::vector<FSMState>>();
+    }
+
+    static auto predicates_from_xml_elements(const std::vector<XMLElement *>& elements)
+        -> tl::expected<std::vector<FSMPredicate>, ParseError>
+    {
+
+        auto to_FSMPredicate = [](XMLElement *el) -> tl::expected<FSMPredicate, ParseError>
+        { 
+            /* 
+            Predicates are of the form:
+            (1) X                 // if X == 1 -> true path, else false path
+            (2) X <comparator> 1  // if X <comparator> 1 -> true path, else false path
+            where
+            <comparator> \in {==, !=, <, <=, >, >=}
+            */
+            std::string value = helpers::sanitise(el->Attribute("value"));
+            std::smatch pieces_match;
+            if (std::regex_match(value, pieces_match, 
+                std::regex("[A-Za-z0-9_@./#&+-](==|!=|>|>=|<|<=)[A-Za-z0-9_@./#&+-]+")))
+            {
+                // pieces match holds two things: <var><comparator><value>, <comparator>
+                // we want to split value on the second, i.e. <comparator>
+                std::string comparator{pieces_match[1].str()};
+                auto toks = value
+                    | views::split(comparator)
+                    | views::transform([](auto r){ return std::string_view(r.begin(), r.end()); })
+                    | utility::to<std::vector<std::string_view>>();
+
+                return FSMPredicate(
+                    helpers::sanitise(el->Attribute("id")),
+                    toks[0], 
+                    comparator, 
+                    toks[1] 
+                );
+            }
+            else if(std::regex_match(value, std::regex("[A-Za-z0-9_@./#&+-]+")))
+            {
+                return FSMPredicate(
+                    helpers::sanitise(el->Attribute("id")),
+                    value
+                ); 
+            }
+            else 
+            {
+                return tl::unexpected<ParseError>(ParseError::IncorrectPredicateFormat);
+            }
+        };
+
+        auto predicates = elements 
+            | views::filter(helpers::is_predicate)
+            | views::transform(to_FSMPredicate);
+
+
+        if (auto v = ranges::find_if(predicates, helpers::has_error<FSMPredicate>); v != predicates.end())
+        {
+            return tl::unexpected<ParseError>((*v).error());
+        }
+        else 
+        {
+            return predicates 
+                | views::transform([](auto&& e){ return e.value(); })
+                | utility::to<std::vector<FSMPredicate>>();
+        }
+    }
+
+    static auto arrows_from_xml_elements(const std::vector<XMLElement *>& elements)
+        -> tl::expected<std::vector<FSMArrow>, ParseError>
+    {
+        auto to_FSMArrow = [](XMLElement *el) -> tl::expected<FSMArrow, ParseError> 
+        { 
+            auto pSource = el->Attribute("source");
+            if (!pSource) return tl::unexpected<ParseError>(ParseError::MissingSourceArrow);
+
+            auto pTarget = el->Attribute("target");
+            if (!pTarget) return tl::unexpected<ParseError>(ParseError::MissingTargetArrow);
+
+            FSMArrow arrow(
+                helpers::sanitise(el->Attribute("id")),
+                helpers::sanitise(pSource), 
+                helpers::sanitise(pTarget) 
+            );
+
+            // if the arrow is relating toa decision block, it'll have a value
+            auto pValue = el->Attribute("value");
+            if (pValue) 
+            {
+                auto b = helpers::to_bool(helpers::sanitise(pValue));
+                if (!b)
+                {
+                    return tl::unexpected<ParseError>(b.error());
+                }
+                else 
+                {
+                    arrow.m_value = b.value();
+                }
+            }
+            return arrow;
+        };
+
+        auto arrows = elements 
+            | views::filter(helpers::is_arrow)
+            | views::transform(to_FSMArrow);
+        
+        if (auto v = ranges::find_if(arrows, helpers::has_error<FSMArrow>); v != arrows.end())
+        {
+            return tl::unexpected<ParseError>((*v).error());
+        }
+        else 
+        {
+            return arrows 
+                | views::transform([](auto&& e){ return e.value(); })
+                | utility::to<std::vector<FSMArrow>>();
+        }
+    }
+
+    auto drawio_to_tokens(std::string_view drawio_xml_str) -> tl::expected<TokenTuple, ParseError>
     {
         XMLDocument doc;
         doc.Parse(drawio_xml_str.data());
@@ -220,102 +428,23 @@ namespace parser
                     pCell = pCell->NextSiblingElement("mxCell");
                 }
 
-                // construct the FSMStates and copy into output tokens
-                auto states = elements 
-                    | views::filter(helpers::is_state)
-                    | views::transform([](XMLElement *el) {
-                        /*
-                            the state has a value of the form either:
-                            (1) $STATE=xyz;                    // explicit state name, no outputs
-                            (2) $OUTPUTS={a,b,c,d};            // implicity inferred state name
-                            (3) {a,b,c,d}                      // implicity inferred outputs and state name
-                            (4) $STATE=xyz;$OUTPUTS={a,b,c,d}; // explicit state name
-                            (4) $STATE=xyz;${a,b,c,d};         // explicit state name, implicit outputs
-                            (5) __                             // no outputs, implicity inferred state name
-                        */
+                auto states = states_from_xml_elements(elements);
+                if (!states) 
+                {
+                    return tl::unexpected<ParseError>(states.error());
+                }
+                auto predicates = predicates_from_xml_elements(elements);
+                if (!predicates) 
+                {
+                    return tl::unexpected<ParseError>(predicates.error());
+                }
+                auto arrows = arrows_from_xml_elements(elements);
+                if (!arrows) 
+                {
+                    return tl::unexpected<ParseError>(arrows.error());
+                }
 
-                        // sanitise the input token of all font, size, and line breaks
-                        std::string value{el->Attribute("value")};
-                        value = std::regex_replace(value, std::regex("<[^>]*>"), "");
-
-                        auto toks = value
-                            | views::split(';')
-                            | views::transform([](auto&& r) { return std::string_view(r.begin(), r.end()); });
-
-                        auto name = toks
-                            | views::filter([](std::string_view tok){ 
-                                return std::regex_match(std::string(tok), std::regex("\\$STATE=[A-Za-z0-9_@./#&+-]+")); 
-                            })
-                            | views::transform([](std::string_view tok) {
-                                tok.remove_prefix(std::min(tok.find_first_of("=")+1, tok.size()));
-                                return tok;
-                            });
-                        
-                        auto outputs = toks
-                            | views::filter([](std::string_view tok){ 
-                                return std::regex_match(std::string(tok), 
-                                    std::regex("\\$OUTPUTS=\\{[A-Za-z0-9,_@./#&+-]+\\}|\\{[A-Za-z0-9,_@./#&+-]+\\}"));
-                            })
-                            | views::transform([](std::string_view tok) {
-                                tok.remove_prefix(std::min(tok.find_first_of("{")+1, tok.size()));
-                                tok.remove_suffix(std::min(tok.size()-tok.find_first_of("}"), tok.size()));
-                                return tok 
-                                    | views::split(',') 
-                                    | views::transform([](auto r){ return std::string(r.begin(), r.end()); })
-                                    | utility::to<std::vector<std::string>>();
-                            });
-
-                        bool is_default_state = ranges::find(toks, "$DEFAULT") != toks.end();
-
-                        if (name.empty()) // implicitly generated name
-                        {
-                            return FSMState{
-                                el->Attribute("id"),
-                                outputs.front(),
-                                is_default_state
-                            };
-                        }
-                        else
-                        {
-                            return FSMState{
-                                el->Attribute("id"),
-                                name.front(),
-                                outputs.front(),
-                                is_default_state
-                            };
-                        }
-                    })
-                    | utility::to<std::vector<FSMState>>();
-                
-                // we later index the decision blocks - which cant be done with a ranges::filter_view
-                // so copy into a sector
-                auto predicates = elements 
-                    | views::filter(helpers::is_predicate)
-                    | views::transform([](XMLElement *el) { 
-                        return FSMPredicate{
-                            el->Attribute("id"),
-                            el->Attribute("value")
-                        }; 
-                    })
-                    | utility::to<std::vector<FSMPredicate>>();
-                
-                // a range of FSMArrows
-                auto arrows = elements 
-                    | views::filter(helpers::is_arrow)
-                    | views::transform([](XMLElement *el) { 
-                        FSMArrow arrow{
-                            el->Attribute("id"),
-                            el->Attribute("source"), 
-                            el->Attribute("target")
-                        };
-                        // if the arrow is relating toa decision block, it'll have a value
-                        auto* pValue = el->Attribute("value");
-                        if (pValue) arrow.m_value = helpers::to_bool(pValue);
-                        return arrow;
-                    })
-                    | utility::to<std::vector<FSMArrow>>();
-
-                return std::make_tuple(states,predicates,arrows);
+                return std::make_tuple(states.value(),predicates.value(),arrows.value());
             }
         }
         return tl::unexpected<ParseError>(ParseError::InvalidDecodedDrawioFile);
@@ -365,9 +494,24 @@ namespace parser
                 break;
             case ParseError::InvalidDecodedDrawioFile:
                 throw std::runtime_error(
-                    "<INVALID DECODED DRAWIO FILE ERROR> : decoded Draw.IO"
-                    "file was invalid");
+                    "<INVALID DECODED DRAWIO FILE ERROR> : decoded Draw.IO");
                 break;
+            case ParseError::MissingSourceArrow:
+                throw std::runtime_error(
+                    "<MISSING SOURCE ARROW> : You did not properly label all of your source arrows");
+                break;
+            case ParseError::MissingTargetArrow:
+                throw std::runtime_error(
+                    "<MISSING TARGET ARROW> : You did not properly label all of your target arrows");
+                break;
+            case ParseError::IncorrectPredicateFormat:
+                throw std::runtime_error(
+                    "<INVALID PREDICATE FORMAT> : You provided an invalid predicate to one of the decision blocks");
+                break;  
+            case ParseError::InvalidBooleanSpecifier:
+                throw std::runtime_error(
+                    "<INVALID BOOLEAN SPECIFIER> : You provided an invalid boolean specified on a decision block arrow");
+                break;  
             default:
                 throw std::runtime_error(
                     "Something unexpected went wrong ... try again.");

@@ -25,8 +25,11 @@ namespace parser
         InflationError,
         DrawioToToken,
         DecisionPathError,
-        InvalidDecodedDrawioFile
-
+        InvalidDecodedDrawioFile,
+        MissingSourceArrow,
+        MissingTargetArrow,
+        IncorrectPredicateFormat,
+        InvalidBooleanSpecifier
     };
 
     void HandleParseError(const ParseError err);
