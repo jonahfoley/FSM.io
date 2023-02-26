@@ -116,7 +116,7 @@ namespace fsm
             | views::transform([](auto&& p){ return input_signals(p.second); })
             | views::join;
 
-        // write the headers
+        // write the header
         auto header = fmt::format(
             "module fsm (\n"
             "  input logic clk, reset,\n"
