@@ -93,7 +93,15 @@ Each anchor point on a shape can be indicated by one of the blue crosses on the 
 
 ## Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
+from the FSM.io directory 
+
+```
+> mkdir build && cd build
+> conan install ..
+> cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+> make 
+```
+The resulting binary file will be found in FSM.io/build/bin under the name `FSM.io`.
 
 ## Example Diagrams
 
