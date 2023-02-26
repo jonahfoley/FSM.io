@@ -23,7 +23,7 @@ FSM.io puts some constraints on the way diagrams should be made so that when the
 
 Each state in your state machine should be of the default rectangle shape in draw.io
 
-![alt text](https://github.com/jonah766/FSM.io/blob/main/resources/fsm/rectangle.png?raw=true){: width=50% style="float:right; padding:16px}
+![alt text](https://github.com/jonah766/FSM.io/blob/main/resources/fsm/rectangle.png?raw=true)
 
 This will represent one case in the resulting case statement. By default states are assigned a defaul name of the form s\<number\>,
 with no outputs. Within each state you may provide the following specifiers:
