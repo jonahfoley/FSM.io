@@ -1,6 +1,8 @@
 # FSM.io
 
-FSM.io is an application which can be used to transform a state-machine made in Draw.io into an equivalent SystemVerilog application. State machines see frequent use in the field of FPGA and ASIC design to build controllers, however can lead to bugs when written by hand due to the complex combinatorial logic used to deduce the next state. This can lead to hard-to-debug problems upon simulation of the design as part of a larger system. By using this graphical approach it becomes easier to see when there is an error in the state machine and makes debugging easier to achieve. Furtheremore, a graphical representation of the state machine is auto documenting of the hardware, enabling other designers in your team to instantly understand the relationship between states in the controller. Finally, since draw.io files are represented using XML, this particular approach lends itself to simple version control, which is often a problem when working with vendor specific tools.
+FSM.io is an application which can be used to transform a state-machine made in Draw.io into an equivalent SystemVerilog application. State machines see frequent use in the field of FPGA and ASIC design to build controllers, however can lead to bugs when written by hand due to the complex combinatorial logic used to deduce the next state. This can lead to hard-to-debug problems upon simulation of the design as part of a larger system. By using this graphical approach it becomes easier to see when there is an error in the state machine, making debugging easier to achieve. 
+
+A graphical representation of the state machine is auto documenting of the hardware, enabling other designers in your team to instantly understand the relationship between states in the controller. Furthermore, since draw.io files are represented using XML, this approach lends itself to simplified version control, which is often a problem when working with vendor specific tools.
 
 ## How To Use
 
