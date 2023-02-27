@@ -16,8 +16,8 @@ There are 2 command line arguments, specified as follows:
 
 | Argument  | Specifier   | Required?  | Function                                            |
 | --------- | ----------- |----------- | --------------------------------------------------- |
-| --diagram | -d          | Yes        | specified the Draw.io diagram you wish to convert   |
-| --outfile | -o          | No         | Specified the output file you wish to write the result to. If not specified, the output will be printed to the console |
+| --diagram | -d          | Yes        | Specifies the Draw.io diagram you wish to convert   |
+| --outfile | -o          | No         | Specifies the output file you wish to write the result to. If not specified, the output will be printed to the console |
 
 FSM.io puts some constraints on the way diagrams should be made so that when the program is run it can deduce information about the state machine. Such attributes are things like the states, decision blocks, default state, state outputs and state names.
 
@@ -87,11 +87,11 @@ end
 
 ### Arrows
 
-All arrows used in your FSM diagram should be of the default arrow type provided by Draw.io. In order to ensure a connection between two elements of the state machine arrows must NOT be floating. Its source connection and its target connection should both both be anchored to their respective elements within the diagram. This is pictured below.
+All arrows used in your FSM diagram should be of the default arrow type provided by Draw.io. In order to ensure a connection between two elements of the state machine, arrows must NOT be floating. It's source connection and it's target connection should both both be anchored to their respective elements within the diagram. This is pictured below.
 
 ![alt text](https://github.com/jonah766/FSM.io/blob/main/resources/fsm/state_connection.png?raw=true)
 
-Each anchor point on a shape can be indicated by one of the blue crosses on the edge of the shape. Successful connection of an arrow with an anchor point is indicated by the green focus. Two arrows may be connection to/from the same anchor point. If additional anchor points are required they can be added to the shape from within Draw.io. 
+Each anchor point on a shape can be indicated by one of the blue crosses on the edge of the shape. Successful connection of an arrow with an anchor point is indicated by the green focus. If required, any two arrows may be connected to/from the same anchor point. If additional anchor points are required they can be added to the shape from within Draw.io. 
 
 ## Installation
 
@@ -107,7 +107,7 @@ The resulting binary file will be found in FSM.io/build/bin under the name `FSM.
 
 ## Example Diagrams
 
-A range of example diagrams can be seen in the /resources folder. In the below example we see a larger state machine. In addition to the states and decision blocks the text highlighted in red is used to describe the function of the state/signal. These bits of text will NOT be included in the resulting code, and are purely for documentation (they need not be red either!).
+A range of example diagrams can be seen in the /resources folder. In the below example we see a larger state machine. In addition to the states and decision blocks the text highlighted in red is used to describe the function of the states/signals. These bits of text will NOT be included in the resulting code, and are purely for documentation (they need not be red either!).
 
 ![alt text](https://github.com/jonah766/FSM.io/blob/main/resources/fsm/ARP_Cache_FSM.png?raw=true)
 
