@@ -304,7 +304,7 @@ namespace parser
             std::string value = helpers::sanitise(el->Attribute("value"));
             std::smatch pieces_match;
             if (std::regex_match(value, pieces_match,
-                                 std::regex("[A-Za-z0-9_@./#&+-](==|!=|>|>=|<|<=)[A-Za-z0-9_@./#&+-]+")))
+                                 std::regex("[A-Za-z0-9_@./#&+-]+(==|!=|>|>=|<|<=)[A-Za-z0-9_@./#&+-]+")))
             {
                 // pieces match holds two things: <var><comparator><value>, <comparator>
                 // we want to split value on the second, i.e. <comparator>
