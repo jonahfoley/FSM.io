@@ -95,11 +95,12 @@ Each anchor point on a shape can be indicated by one of the blue crosses on the 
 
 ## Installation
 
+Requires : GCC-12
 from the FSM.io directory 
 
 ```
 > mkdir build && cd build
-> conan install ..
+> conan install .. --build=missing
 > cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 > make 
 ```
